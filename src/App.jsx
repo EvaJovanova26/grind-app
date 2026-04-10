@@ -138,11 +138,13 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [moveMenu, setMoveMenu] = useState(null); // {id, from}
   const [confirmReward, setConfirmReward] = useState(null);
+  const [activeDate, setActiveDate] = useState(today);
 
   const p = useCallback((fn) => setState(prev => { const n = typeof fn === "function" ? fn(prev) : fn; save(n); return n; }), []);
   const todayStr = today();
-  const tc = state.ritualChecks[todayStr] || {};
-  const pdc = (state.perfectDayChecks || {})[todayStr] || {};
+  const isViewingPast = activeDate !== todayStr;
+  const tc = state.ritualChecks[activeDate] || {};
+  const pdc = (state.perfectDayChecks || {})[activeDate] || {};
 
   const showToast = (msg, dur = 2500) => { setToast(msg); setTimeout(() => setToast(null), dur); };
 
@@ -167,13 +169,13 @@ export default function App() {
 
   // Actions
   const toggleRitual = (id) => p(s => {
-    const dc = { ...s.ritualChecks }; const t = { ...(dc[todayStr] || {}) }; t[id] = !t[id]; dc[todayStr] = t;
+    const dc = { ...s.ritualChecks }; const t = { ...(dc[activeDate] || {}) }; t[id] = !t[id]; dc[activeDate] = t;
     return { ...s, ritualChecks: dc };
   });
 
   const togglePerfectDay = (id) => p(s => {
-    const dc = { ...(s.perfectDayChecks || {}) }; const t = { ...(dc[todayStr] || {}) }; t[id] = !t[id]; dc[todayStr] = t;
-    const prevAllDone = (s.perfectDay || []).every(pd => ((s.perfectDayChecks || {})[todayStr] || {})[pd.id]);
+    const dc = { ...(s.perfectDayChecks || {}) }; const t = { ...(dc[activeDate] || {}) }; t[id] = !t[id]; dc[activeDate] = t;
+    const prevAllDone = (s.perfectDay || []).every(pd => ((s.perfectDayChecks || {})[activeDate] || {})[pd.id]);
     const newAllDone = (s.perfectDay || []).every(pd => t[pd.id]);
     let bonus = 0;
     if (newAllDone && !prevAllDone) { bonus = 100; setTimeout(() => showToast("✨ Perfect day! +100 bonus!"), 100); }
@@ -194,7 +196,7 @@ export default function App() {
     const streak = getStreak(g.id, state.goalLog || []) + 1;
     const mult = streakMult(streak);
     const pts = (g.pts || 20) * mult;
-    p(s => ({ ...s, goalLog: [...(s.goalLog || []), { goalId: g.id, date: todayStr }], totalEarned: s.totalEarned + pts }));
+    p(s => ({ ...s, goalLog: [...(s.goalLog || []), { goalId: g.id, date: activeDate }], totalEarned: s.totalEarned + pts }));
     showToast(`+${pts} pts! ${streak > 1 ? `🔥 ${streak}d streak` : ""}`);
   };
 
@@ -202,7 +204,7 @@ export default function App() {
     const streak = getStreak(w.id, state.workLog || []) + 1;
     const mult = streakMult(streak);
     const pts = (w.pts || 25) * mult;
-    p(s => ({ ...s, workLog: [...(s.workLog || []), { goalId: w.id, date: todayStr }], totalEarned: s.totalEarned + pts }));
+    p(s => ({ ...s, workLog: [...(s.workLog || []), { goalId: w.id, date: activeDate }], totalEarned: s.totalEarned + pts }));
     showToast(`+${pts} pts! ${streak > 1 ? `🔥 ${streak}d streak` : ""}`);
   };
 
@@ -242,10 +244,10 @@ export default function App() {
   // Today's summary data
   const todayRituals = state.rituals.filter(r => tc[r.id]);
   const todayPerfect = (state.perfectDay || []).filter(pd => pdc[pd.id]);
-  const todayGoals = (state.goalLog || []).filter(e => e.date === todayStr);
-  const todayWorkDone = (state.workLog || []).filter(e => e.date === todayStr);
-  const todayPenalties = state.penaltyLog.filter(pl => pl.date === todayStr);
-  const todayRewards = state.rewardLog.filter(rl => rl.date === todayStr);
+  const todayGoals = (state.goalLog || []).filter(e => e.date === activeDate);
+  const todayWorkDone = (state.workLog || []).filter(e => e.date === activeDate);
+  const todayPenalties = state.penaltyLog.filter(pl => pl.date === activeDate);
+  const todayRewards = state.rewardLog.filter(rl => rl.date === activeDate);
   const todayTotal = ritualPtsToday + perfectPtsToday;
   const todayCount = todayRituals.length + todayPerfect.length + todayGoals.length + todayWorkDone.length;
 
@@ -309,11 +311,25 @@ export default function App() {
         </div>
       </div>
 
+      {/* Date navigator */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 18, background: isViewingPast ? C.accentBg : C.surface, border: `1px solid ${isViewingPast ? C.accent + "44" : C.border}`, borderRadius: 12, padding: "8px 12px" }}>
+        <button onClick={() => { const d = new Date(activeDate); d.setDate(d.getDate() - 1); setActiveDate(d.toISOString().slice(0, 10)); }}
+          style={{ background: "none", border: "none", color: C.textMuted, cursor: "pointer", fontSize: 18, padding: "2px 8px", fontFamily: FONT }}>‹</button>
+        <input type="date" value={activeDate} max={todayStr} onChange={e => e.target.value && setActiveDate(e.target.value)}
+          style={{ background: "none", border: "none", color: isViewingPast ? C.accent : C.text, fontFamily: MONO, fontSize: 14, fontWeight: 600, textAlign: "center", outline: "none", colorScheme: "dark", cursor: "pointer" }} />
+        <button onClick={() => { const d = new Date(activeDate); d.setDate(d.getDate() + 1); const next = d.toISOString().slice(0, 10); if (next <= todayStr) setActiveDate(next); }}
+          style={{ background: "none", border: "none", color: activeDate === todayStr ? C.textDim : C.textMuted, cursor: activeDate === todayStr ? "default" : "pointer", fontSize: 18, padding: "2px 8px", fontFamily: FONT }}>›</button>
+        {isViewingPast && (
+          <button onClick={() => setActiveDate(todayStr)}
+            style={{ background: C.accent, border: "none", borderRadius: 6, color: C.bg, fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer", fontFamily: FONT, marginLeft: 4 }}>Today</button>
+        )}
+      </div>
+
       {/* Score bar */}
       <div style={{ display: "flex", gap: 10, marginBottom: 22 }}>
         <Chip icon={I.star} label="Points" value={balance} color={C.accent} bg={C.accentBg} />
         <Chip icon={I.coin} label="Penalty Jar" value={`£${monthPenTotal.toFixed(2)}`} color={C.red} bg={C.redBg} />
-        <Chip icon={I.flame} label="Today" value={`+${ritualPtsToday + perfectPtsToday}`} color={C.green} bg={C.greenBg} />
+        <Chip icon={I.flame} label={isViewingPast ? new Date(activeDate + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "Today"} value={`+${ritualPtsToday + perfectPtsToday}`} color={C.green} bg={C.greenBg} />
       </div>
 
       {/* DAILY RITUALS */}
@@ -350,7 +366,7 @@ export default function App() {
           {(state.work || []).map(w => {
             const streak = getStreak(w.id, state.workLog || []);
             const mult = streakMult(streak);
-            const doneToday = (state.workLog || []).some(e => e.goalId === w.id && e.date === todayStr);
+            const doneToday = (state.workLog || []).some(e => e.goalId === w.id && e.date === activeDate);
             return (
               <div key={w.id} style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, opacity: doneToday ? 0.45 : 1 }}>
                 <CircleBtn done={doneToday} color={doneToday ? C.green : C.teal} onClick={() => !doneToday && completeWork(w)} />
@@ -371,7 +387,8 @@ export default function App() {
         </div>
       </Sec>
 
-      {/* PENALTY JAR */}
+      {/* PENALTY JAR — today only */}
+      {!isViewingPast && (
       <Sec title="Penalty Jar" sub={`£${monthPenTotal.toFixed(2)} this month`} color={C.red}>
         <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: 14 }}>
           {monthPenTotal > 0 && (
@@ -410,6 +427,7 @@ export default function App() {
           {isPaid && <div style={{ textAlign: "center", fontSize: 12, color: C.green, marginTop: 8 }}>✓ Paid for {curMonth}</div>}
         </div>
       </Sec>
+      )}
 
       {/* ACTIVE GOALS */}
       <Sec title="Active Goals" sub={`${state.activeGoals.length}/7`} color={C.accent}>
@@ -417,7 +435,7 @@ export default function App() {
           {state.activeGoals.map(g => {
             const streak = getStreak(g.id, state.goalLog || []);
             const mult = streakMult(streak);
-            const doneToday = (state.goalLog || []).some(e => e.goalId === g.id && e.date === todayStr);
+            const doneToday = (state.goalLog || []).some(e => e.goalId === g.id && e.date === activeDate);
             return (
               <div key={g.id} style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, opacity: doneToday ? 0.45 : 1 }}>
                 <CircleBtn done={doneToday} color={doneToday ? C.green : C.accent} onClick={() => !doneToday && completeGoal(g)} />
@@ -493,7 +511,8 @@ export default function App() {
         </div>
       </Sec>
 
-      {/* REWARDS */}
+      {/* REWARDS — today only */}
+      {!isViewingPast && (
       <Sec title="Rewards" sub={`${balance} pts available`} color={C.accent}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {state.rewards.map(rw => {
@@ -522,10 +541,11 @@ export default function App() {
           </div>
         )}
       </Sec>
+      )}
 
       {/* TODAY'S SUMMARY */}
       {todayCount > 0 && (
-        <Sec title="Today's Summary" sub="" color={C.green}>
+        <Sec title={isViewingPast ? `Summary for ${new Date(activeDate + "T12:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}` : "Today's Summary"} sub="" color={C.green}>
           <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: 16 }}>
             <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap" }}>
               <MiniStat label="Things done" value={todayCount} color={C.green} />
