@@ -4,8 +4,8 @@
 // Plumbing for storage lives in utils/storage.js — this is just UI.
 //
 // Section order (top → bottom):
-//   1. Edit content   ← rituals, intentions, work rituals, weekly + monthly rhythms
-//                       (commit C will add commitments, penalties, rewards)
+//   1. Edit content   (all 8 lists: rituals, intentions x3, work rituals,
+//                      weekly + monthly rhythms, commitments, penalties, rewards)
 //   2. Data           (export/import backups)
 //   3. App info       (counts, schema version)
 //   4. Maintenance    (forgive aging penalties, recalculate totals)
@@ -24,6 +24,9 @@ import {
 import RitualEditor from '../components/RitualEditor';
 import IntentionEditor from '../components/IntentionEditor';
 import RhythmEditor from '../components/RhythmEditor';
+import CommitmentEditor from '../components/CommitmentEditor';
+import PenaltyEditor from '../components/PenaltyEditor';
+import RewardEditor from '../components/RewardEditor';
 
 // ============================================================
 // MAIN
@@ -80,12 +83,8 @@ const descStyle = {
 };
 
 // ============================================================
-// EDIT CONTENT
+// EDIT CONTENT — all 8 lists
 // ============================================================
-//
-// All per-list editors live here. updateField is a tiny helper that
-// produces an onChange suitable for any single top-level data key —
-// avoids writing five near-identical setter functions.
 
 function EditContentSection({ data, setData }) {
   const updateField = (key) => (value) =>
@@ -131,6 +130,21 @@ function EditContentSection({ data, setData }) {
         cadence="monthly"
         rhythms={data.monthlyRhythms}
         onChange={updateField('monthlyRhythms')}
+      />
+
+      <CommitmentEditor
+        commitments={data.commitments}
+        onChange={updateField('commitments')}
+      />
+
+      <PenaltyEditor
+        penalties={data.penalties}
+        onChange={updateField('penalties')}
+      />
+
+      <RewardEditor
+        rewards={data.rewards}
+        onChange={updateField('rewards')}
       />
     </section>
   );

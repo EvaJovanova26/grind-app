@@ -69,7 +69,8 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
     data.intentions.life.length;
   const intentionsMet = intentionsDone >= 3;
 
-  // ── Criterion 3: Work + tasks (weekday) / Tasks only (weekend) ──
+  // ── Criterion 3 (weekdays only): Work rituals + tasks all done ──
+  // On weekends, work is hidden from the UI and dropped from Perfect Day criteria.
   const workRitualChecks = data.workRitualChecks[viewDate] || {};
   const workRitualsDone = data.workRituals.filter(wr => {
     const taps = workRitualChecks[wr.id] || 0;
@@ -81,12 +82,8 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
   const todosDone = todaysTodos.filter(t => t.done).length;
   const todosTotal = todaysTodos.length;
 
-  let workMet, workLabel, workDetail;
-  if (weekend) {
-    workMet = todosTotal > 0 && todosDone === todosTotal;
-    workLabel = 'All daily tasks';
-    workDetail = `${todosDone}/${todosTotal}`;
-  } else {
+  let workMet = true, workLabel = '', workDetail = '';
+  if (!weekend) {
     const allWorkRituals = workRitualsDone === workRitualsTotal && workRitualsTotal > 0;
     const allTodos = todosTotal === 0 || todosDone === todosTotal;
     workMet = allWorkRituals && allTodos;
@@ -97,10 +94,10 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
   const perfectDayCriteria = [
     { label: 'Rituals (75%+)', met: ritualsMet, detail: `${ritualsDone}/${ritualsTotal}` },
     { label: 'Intentions (3+)', met: intentionsMet, detail: `${intentionsDone}` },
-    { label: workLabel, met: workMet, detail: workDetail },
+    ...(weekend ? [] : [{ label: workLabel, met: workMet, detail: workDetail }]),
   ];
 
-  // Perfect Day = all 3 criteria met AND points ≥ 250
+  // Perfect Day = all (active) criteria met AND points ≥ 250
   const isPerfect = ritualsMet && intentionsMet && workMet && todayPoints >= 250;
 
   return (
@@ -168,9 +165,11 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
         <IntentionsView data={data} setData={setData} viewDate={viewDate} />
       </Section>
 
-      <Section title="Work">
-        <WorkView data={data} setData={setData} viewDate={viewDate} />
-      </Section>
+      {!weekend && (
+        <Section title="Work">
+          <WorkView data={data} setData={setData} viewDate={viewDate} />
+        </Section>
+      )}
 
       {canLogPenalty && (
         <button
@@ -349,9 +348,9 @@ function RitualRow({ ritual, taps, onTap, isLast }) {
 
   let ptsLabel;
   if (ritual.water) {
-const targetMl = (ritual.waterTaps ?? 4) * 500;
-const targetLabel = targetMl >= 1000 ? `${targetMl / 1000}L` : `${targetMl}ml`;
-ptsLabel = `${taps * 500}ml / ${targetLabel} · +${taps * 2}`;
+    const targetMl = (ritual.waterTaps ?? 4) * 500;
+    const targetLabel = targetMl >= 1000 ? `${targetMl / 1000}L` : `${targetMl}ml`;
+    ptsLabel = `${taps * 500}ml / ${targetLabel} · +${taps * 2}`;
   } else if (ritual.twice) {
     ptsLabel = taps === 2 ? `+${ritual.pts}` : taps === 1 ? `+${ritual.pts / 2} (½)` : `+${ritual.pts}`;
   } else {
