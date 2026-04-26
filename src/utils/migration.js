@@ -4,6 +4,9 @@
 // v5 → v6: tabs, weekly/monthly rhythms, commitments, new ritual model
 // v6 → v7: weeklyChecks/monthlyChecks values change from boolean to date string
 //          (records WHICH day a rhythm was ticked, for Perfect Day attribution)
+// v7 → v8: penaltyPaidMonths replaced with itemized penaltyPayments log
+//          (preserves historical "paid in full" while allowing partial payments
+//          and re-accrual if new penalties are logged after a paid date)
 
 import {
   DEFAULT_RITUALS,
@@ -40,15 +43,15 @@ export function freshV6State() {
     workRitualChecks: {},
     workTodos: {},
 
-    weeklyChecks: {},      // v7+: { weekKey: { rhythmId: 'YYYY-MM-DD' } }
-    monthlyChecks: {},     // v7+: { monthKey: { rhythmId: 'YYYY-MM-DD' } }
+    weeklyChecks: {},
+    monthlyChecks: {},
 
     backlog: [],
     deadlines: [],
 
     penaltyLog: [],
     rewardLog: [],
-    penaltyPaidMonths: [],
+    penaltyPayments: [],   // v8+: [{ id, monthKey, amount, paidAt }, ...]
 
     totalEarned: 0,
     totalSpent: 0,
@@ -56,13 +59,11 @@ export function freshV6State() {
 }
 
 // ============================================================
-// v5 → v6 (existing migration, unchanged)
+// v5 → v6
 // ============================================================
 
 export function migrateV5toV6(v5Data) {
   const v6 = freshV6State();
-  // After this we still need v6→v7 for the rhythm checks, so we won't bake
-  // schemaVersion here — ensureV6Schema handles the chain.
 
   v6.penaltyLog = v5Data.penaltyLog || [];
   v6.rewardLog = v5Data.rewardLog || [];
@@ -166,7 +167,6 @@ export function migrateV5toV6(v5Data) {
   v6.totalEarned = calculateTotalEarnedV6(v6);
   v6.totalSpent = (v5Data.rewardLog || []).reduce((sum, r) => sum + (r.cost || 0), 0);
 
-  // Mark this as v6 — the v6→v7 migration handles the rest
   v6.schemaVersion = 6;
 
   return v6;
@@ -208,34 +208,21 @@ function calculateTotalEarnedV6(v6Data) {
 // ============================================================
 // v6 → v7: weekly/monthly check values become date strings
 // ============================================================
-//
-// Old shape: weeklyChecks: { '2026-04-20': { w_laundry: true } }
-// New shape: weeklyChecks: { '2026-04-20': { w_laundry: '2026-04-20' } }
-//
-// The `true` values become the week-start (or month-start) date as a
-// best-effort attribution. We don't know the actual tick day, so this
-// is "lumpy" — historical weekly ticks all attribute to Monday, and
-// historical monthly ticks all attribute to the 1st.
-//
-// Going forward, ticks will record the actual day they happened on.
 
 export function migrateV6toV7(v6Data) {
   const v7 = { ...v6Data };
 
-  // Convert weeklyChecks
   const newWeeklyChecks = {};
   for (const [weekKey, checks] of Object.entries(v6Data.weeklyChecks || {})) {
     newWeeklyChecks[weekKey] = {};
     for (const [rhythmId, value] of Object.entries(checks)) {
       if (!value) continue;
-      // If already a string (date), keep it. If true, convert to weekKey.
       newWeeklyChecks[weekKey][rhythmId] =
         typeof value === 'string' ? value : weekKey;
     }
   }
   v7.weeklyChecks = newWeeklyChecks;
 
-  // Convert monthlyChecks — month-start = first day of the month
   const newMonthlyChecks = {};
   for (const [monthKey, checks] of Object.entries(v6Data.monthlyChecks || {})) {
     newMonthlyChecks[monthKey] = {};
@@ -253,11 +240,56 @@ export function migrateV6toV7(v6Data) {
 }
 
 // ============================================================
+// v7 → v8: penaltyPaidMonths becomes itemized penaltyPayments
+// ============================================================
+//
+// Old shape: penaltyPaidMonths: ['2026-04', ...]   (boolean per month)
+// New shape: penaltyPayments: [{ id, monthKey, amount, paidAt }, ...]
+//
+// Migration rule: for each previously-paid month, sum that month's penalties
+// at migration time and create a single synthetic "paid in full" payment
+// dated today. This preserves the historical truth that those months were
+// settled at some point — but if any new penalties get logged with a date
+// in those months later, they'll re-accrue and become payable again.
+//
+// penaltyPaidMonths is removed from the data shape. Going forward,
+// "is this month paid?" is a derived check: amountOwed === 0.
+
+export function migrateV7toV8(v7Data) {
+  const v8 = { ...v7Data };
+  const today = todayISO();
+
+  // Sum each month's penalties so we can record what was paid
+  const monthTotals = {};
+  for (const p of v7Data.penaltyLog || []) {
+    if (!p.date) continue;
+    const mk = p.date.slice(0, 7);
+    monthTotals[mk] = (monthTotals[mk] || 0) + (p.amount || 0);
+  }
+
+  const payments = [];
+  for (const monthKey of v7Data.penaltyPaidMonths || []) {
+    const amount = monthTotals[monthKey] || 0;
+    payments.push({
+      id: `pay_migrated_${monthKey}`,
+      monthKey,
+      amount,
+      paidAt: today, // unknown actual date — best we can do
+      note: 'migrated from v7',
+    });
+  }
+
+  v8.penaltyPayments = payments;
+  delete v8.penaltyPaidMonths;
+  v8.schemaVersion = 8;
+  return v8;
+}
+
+// ============================================================
 // Main entry point
 // ============================================================
 
 export function ensureV6Schema(rawData) {
-  // Brand new user
   if (!rawData) {
     const fresh = freshV6State();
     fresh.schemaVersion = CURRENT_SCHEMA_VERSION;
@@ -265,9 +297,6 @@ export function ensureV6Schema(rawData) {
   }
 
   let data = rawData;
-
-  // Ladder: v5/older → v6 → v7 → ...
-  // Each step bumps schemaVersion and we re-check against current.
 
   if (!data.schemaVersion || data.schemaVersion < 6) {
     console.log('[migration] v5 → v6');
@@ -279,7 +308,10 @@ export function ensureV6Schema(rawData) {
     data = migrateV6toV7(data);
   }
 
-  // Future migrations chain here.
+  if (data.schemaVersion < 8) {
+    console.log('[migration] v7 → v8');
+    data = migrateV7toV8(data);
+  }
 
   return data;
 }

@@ -2,16 +2,30 @@
 //
 // Rewards tab: rewards grid + penalty jar + claim history.
 // Points are earned on Today/Week, spent here.
+//
+// Jar (v8+):
+//   - Owed = sum(penalties this month) − sum(payments for this month)
+//   - Pay button opens an inline input; you choose any £ amount up to owed
+//   - Multiple payments per month allowed (split a debt over several pays)
+//   - PAID tag appears only when owed ≤ 0 AND at least one payment exists
+//   - Logging a new penalty in a paid month re-opens the jar automatically
 
 import { useState } from 'react';
 import { todayISO, currentMonthKey, formatShort } from '../utils/dates';
-import { currentBalance, currentMonthPenalties } from '../utils/points';
+import {
+  currentBalance,
+  currentMonthPenalties,
+  paymentsForMonth,
+  jarOwedForMonth,
+  jarIsSettled,
+} from '../utils/points';
 import {
   COLORS,
   FONTS,
   cardStyle,
   inputStyle,
   primaryButtonStyle,
+  secondaryButtonStyle,
   ghostButtonStyle,
 } from '../utils/theme';
 import {
@@ -22,7 +36,6 @@ import {
   PenaltyJarVisual,
 } from '../components/ui';
 
-// Visual fill cap for the jar — matches design's default
 const JAR_VISUAL_CAP = 50;
 
 // ============================================================
@@ -32,8 +45,6 @@ const JAR_VISUAL_CAP = 50;
 export default function RewardsTab({ data, setData }) {
   const balance = currentBalance(data);
   const monthKey = currentMonthKey();
-  const jarAmount = currentMonthPenalties(data, monthKey);
-  const paidThisMonth = (data.penaltyPaidMonths || []).includes(monthKey);
 
   return (
     <div style={{
@@ -41,7 +52,6 @@ export default function RewardsTab({ data, setData }) {
       maxWidth: '1200px',
       margin: '0 auto',
     }}>
-      {/* Balance + jar row */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1.4fr',
@@ -54,12 +64,7 @@ export default function RewardsTab({ data, setData }) {
           color={COLORS.accent}
           caption="Available to spend"
         />
-        <JarCard
-          amount={jarAmount}
-          monthKey={monthKey}
-          paid={paidThisMonth}
-          onMarkPaid={() => markPaid(data, setData, monthKey)}
-        />
+        <JarCard data={data} setData={setData} monthKey={monthKey} />
       </div>
 
       <RewardsGrid data={data} setData={setData} balance={balance} />
@@ -70,17 +75,69 @@ export default function RewardsTab({ data, setData }) {
 }
 
 // ============================================================
-// JAR CARD with SVG visualization
+// JAR CARD — owed view, partial-payment input, history line
 // ============================================================
 
-function JarCard({ amount, monthKey, paid, onMarkPaid }) {
+function JarCard({ data, setData, monthKey }) {
+  const [showPayInput, setShowPayInput] = useState(false);
+  const [payAmount, setPayAmount] = useState('');
+  const [payError, setPayError] = useState(null);
+
+  const totalLogged = currentMonthPenalties(data, monthKey);
+  const totalPaid = paymentsForMonth(data, monthKey);
+  const owed = jarOwedForMonth(data, monthKey);
+  const settled = jarIsSettled(data, monthKey);
+  const hasAnyPayment = totalPaid > 0;
+
+  const monthPayments = (data.penaltyPayments || [])
+    .filter(p => p.monthKey === monthKey)
+    .sort((a, b) => (b.paidAt || '').localeCompare(a.paidAt || ''));
+
+  const startPay = () => {
+    setShowPayInput(true);
+    setPayAmount(owed.toFixed(2));
+    setPayError(null);
+  };
+
+  const cancelPay = () => {
+    setShowPayInput(false);
+    setPayAmount('');
+    setPayError(null);
+  };
+
+  const submitPay = () => {
+    const amt = Number(payAmount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setPayError('Enter an amount greater than £0.');
+      return;
+    }
+    if (amt > owed + 0.001) {
+      setPayError(`That's more than what's owed (£${owed.toFixed(2)}).`);
+      return;
+    }
+    recordPayment(setData, monthKey, amt);
+    cancelPay();
+  };
+
+  const undoPayment = (paymentId) => {
+    if (!confirm('Remove this payment from the log?')) return;
+    setData(prev => ({
+      ...prev,
+      penaltyPayments: (prev.penaltyPayments || []).filter(p => p.id !== paymentId),
+    }));
+  };
+
+  // Visual fill is based on what's still OWED, not the original total.
+  // That way the jar gradually empties as you pay.
+  const fillAmount = Math.max(0, owed);
+
   return (
     <Widget
       padding="14px 16px"
-      accent={paid ? COLORS.good : (amount > 0 ? COLORS.red : null)}
+      accent={settled ? COLORS.good : (owed > 0 ? COLORS.red : null)}
     >
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'stretch' }}>
-        <PenaltyJarVisual total={amount} cap={JAR_VISUAL_CAP} />
+        <PenaltyJarVisual total={fillAmount} cap={JAR_VISUAL_CAP} />
 
         <div style={{
           flex: 1,
@@ -96,10 +153,15 @@ function JarCard({ amount, monthKey, paid, onMarkPaid }) {
               alignItems: 'baseline',
               marginBottom: '0.5rem',
             }}>
-              <WidgetLabel color={paid ? COLORS.good : null}>
-                {paid ? `Jar · ${monthKey} · paid` : `Penalty Jar · ${monthKey}`}
+              <WidgetLabel color={settled ? COLORS.good : null}>
+                {settled
+                  ? `Jar · ${monthKey} · paid`
+                  : owed > 0 && hasAnyPayment
+                    ? `Penalty Jar · ${monthKey} · partial`
+                    : `Penalty Jar · ${monthKey}`
+                }
               </WidgetLabel>
-              {paid && (
+              {settled && (
                 <span style={{
                   fontSize: '0.7rem',
                   color: COLORS.good,
@@ -110,16 +172,18 @@ function JarCard({ amount, monthKey, paid, onMarkPaid }) {
                 </span>
               )}
             </div>
+
             <div style={{
               fontFamily: FONTS.display,
               fontSize: '2.25rem',
               fontWeight: 400,
-              color: paid ? COLORS.good : (amount > 0 ? COLORS.red : COLORS.textMuted),
+              color: settled ? COLORS.good : (owed > 0 ? COLORS.red : COLORS.textMuted),
               letterSpacing: '-0.03em',
               lineHeight: 1,
             }}>
-              £{amount.toFixed(2)}
+              £{owed.toFixed(2)}
             </div>
+
             <div style={{
               fontFamily: FONTS.mono,
               fontSize: '0.7rem',
@@ -127,13 +191,116 @@ function JarCard({ amount, monthKey, paid, onMarkPaid }) {
               marginTop: '0.4rem',
               letterSpacing: '0.06em',
             }}>
-              cap £{JAR_VISUAL_CAP} · {paid ? 'settled' : amount > 0 ? 'open' : 'empty'}
+              {hasAnyPayment
+                ? `paid £${totalPaid.toFixed(2)} of £${totalLogged.toFixed(2)}`
+                : `cap £${JAR_VISUAL_CAP} · ${owed > 0 ? 'open' : 'empty'}`
+              }
             </div>
+
+            {monthPayments.length > 0 && (
+              <div style={{
+                marginTop: '0.6rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.15rem',
+              }}>
+                {monthPayments.map(p => (
+                  <div
+                    key={p.id}
+                    style={{
+                      fontFamily: FONTS.mono,
+                      fontSize: '0.68rem',
+                      color: COLORS.textMuted,
+                      letterSpacing: '0.04em',
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    <span>£{p.amount.toFixed(2)} paid</span>
+                    {p.paidAt && <span>· {formatShort(p.paidAt)}</span>}
+                    <button
+                      onClick={() => undoPayment(p.id)}
+                      style={{
+                        marginLeft: 'auto',
+                        background: 'transparent',
+                        border: 'none',
+                        color: COLORS.textFaint,
+                        cursor: 'pointer',
+                        fontSize: '0.65rem',
+                        fontFamily: FONTS.sans,
+                        padding: '0 0.2rem',
+                      }}
+                      aria-label="Undo payment"
+                      title="Undo this payment"
+                    >
+                      undo
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {!paid && amount > 0 && (
+          {showPayInput ? (
+            <div style={{
+              marginTop: '0.75rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.4rem',
+            }}>
+              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                <span style={{
+                  color: COLORS.textMuted,
+                  fontSize: '0.85rem',
+                  fontFamily: FONTS.mono,
+                }}>
+                  £
+                </span>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.01"
+                  value={payAmount}
+                  onChange={(e) => { setPayAmount(e.target.value); setPayError(null); }}
+                  onKeyDown={(e) => e.key === 'Enter' && submitPay()}
+                  autoFocus
+                  style={{ ...inputStyle, width: '100px', fontSize: '0.85rem' }}
+                />
+                <button
+                  onClick={submitPay}
+                  style={{
+                    ...primaryButtonStyle,
+                    padding: '0.4rem 0.85rem',
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  Pay
+                </button>
+                <button
+                  onClick={cancelPay}
+                  style={{
+                    ...secondaryButtonStyle,
+                    padding: '0.4rem 0.85rem',
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+              {payError && (
+                <div style={{
+                  color: COLORS.red,
+                  fontSize: '0.72rem',
+                  fontFamily: FONTS.sans,
+                }}>
+                  {payError}
+                </div>
+              )}
+            </div>
+          ) : owed > 0 ? (
             <button
-              onClick={onMarkPaid}
+              onClick={startPay}
               style={{
                 ...primaryButtonStyle,
                 marginTop: '0.75rem',
@@ -142,10 +309,9 @@ function JarCard({ amount, monthKey, paid, onMarkPaid }) {
                 fontSize: '0.8rem',
               }}
             >
-              Mark as paid
+              Mark amount as paid
             </button>
-          )}
-          {paid && (
+          ) : settled ? (
             <div style={{
               fontSize: '0.78rem',
               color: COLORS.textMuted,
@@ -155,17 +321,25 @@ function JarCard({ amount, monthKey, paid, onMarkPaid }) {
             }}>
               Good. Fresh slate next month.
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </Widget>
   );
 }
 
-function markPaid(data, setData, monthKey) {
+function recordPayment(setData, monthKey, amount) {
   setData(prev => ({
     ...prev,
-    penaltyPaidMonths: [...(prev.penaltyPaidMonths || []), monthKey],
+    penaltyPayments: [
+      ...(prev.penaltyPayments || []),
+      {
+        id: `pay_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        monthKey,
+        amount: Math.round(amount * 100) / 100,
+        paidAt: todayISO(),
+      },
+    ],
   }));
 }
 
@@ -252,7 +426,6 @@ function RewardCard({ reward, balance, onClaim, onDelete }) {
   const affordable = balance >= reward.cost;
   const deficit = reward.cost - balance;
 
-  // Ring SVG geometry
   const size = 52;
   const stroke = 4;
   const r = (size - stroke) / 2;
@@ -285,7 +458,6 @@ function RewardCard({ reward, balance, onClaim, onDelete }) {
       }}
     >
       <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
-        {/* Progress ring */}
         <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
           <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
             <circle

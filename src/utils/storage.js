@@ -3,7 +3,7 @@
 // The single source of truth for data persistence.
 
 const STORAGE_KEY = 'grind_app_data';
-const SCHEMA_VERSION = 7; // bumped from v6 — weekly/monthly checks now carry date strings
+const SCHEMA_VERSION = 8; // bumped from v7 — penalty payments are now itemized
 
 export function loadData() {
   try {

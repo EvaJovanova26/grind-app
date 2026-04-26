@@ -61,11 +61,6 @@ export function workTodoPointsForDate(data, date) {
   return todos.filter(t => t.done).reduce((sum, t) => sum + (t.pts || 0), 0);
 }
 
-/**
- * Points from weekly rhythms ticked specifically on `date`.
- * v7+ schema: weeklyChecks[weekKey][rhythmId] = the ISO date the tick happened on.
- * Walk all weeks, find rhythm ticks whose date matches, sum the points.
- */
 export function weeklyRhythmPointsForDate(data, date) {
   let total = 0;
   for (const checks of Object.values(data.weeklyChecks || {})) {
@@ -78,9 +73,6 @@ export function weeklyRhythmPointsForDate(data, date) {
   return total;
 }
 
-/**
- * Same logic for monthly rhythms.
- */
 export function monthlyRhythmPointsForDate(data, date) {
   let total = 0;
   for (const checks of Object.values(data.monthlyChecks || {})) {
@@ -93,10 +85,6 @@ export function monthlyRhythmPointsForDate(data, date) {
   return total;
 }
 
-/**
- * Total points "earned on" a given date. Includes all per-day sources
- * AND weekly/monthly rhythms attributed to that day via tick-date.
- */
 export function totalPointsForDate(data, date) {
   return (
     ritualPointsForDate(data, date) +
@@ -112,10 +100,42 @@ export function currentBalance(data) {
   return (data.totalEarned || 0) - (data.totalSpent || 0);
 }
 
+// ============================================================
+// PENALTY JAR
+// ============================================================
+//
+// "Owed" for a given month = sum of penalties dated to that month
+// minus sum of payments recorded against that month. Can go negative
+// briefly if you overpay (rare, but allowed).
+//
+// "Settled" = owed has been brought to zero (or below). The PAID tag
+// is shown when there's at least one payment AND owed is zero or less.
+// Re-accrual is automatic: log a new penalty in a settled month and
+// it goes back into the red until you record another payment.
+
 export function currentMonthPenalties(data, monthKey) {
   return (data.penaltyLog || [])
     .filter(p => p.date && p.date.startsWith(monthKey))
     .reduce((sum, p) => sum + (p.amount || 0), 0);
+}
+
+export function paymentsForMonth(data, monthKey) {
+  return (data.penaltyPayments || [])
+    .filter(p => p.monthKey === monthKey)
+    .reduce((sum, p) => sum + (p.amount || 0), 0);
+}
+
+export function jarOwedForMonth(data, monthKey) {
+  const total = currentMonthPenalties(data, monthKey);
+  const paid = paymentsForMonth(data, monthKey);
+  // Round to 2dp to avoid float drift like 0.0000001 left over
+  return Math.round((total - paid) * 100) / 100;
+}
+
+export function jarIsSettled(data, monthKey) {
+  const owed = jarOwedForMonth(data, monthKey);
+  const hasPayment = (data.penaltyPayments || []).some(p => p.monthKey === monthKey);
+  return owed <= 0 && hasPayment;
 }
 
 export function ritualsCompletedCount(data, date) {
