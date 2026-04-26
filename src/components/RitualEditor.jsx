@@ -5,20 +5,34 @@
 //   - Validation: name required, points > 0, water taps a positive integer
 //   - New-item factory: defaults for a fresh ritual
 //
+// Reused for Work Rituals via the `allowWater` prop (work rituals can't
+// have a water tap behavior). Same component, two configurations:
+//
+//   <RitualEditor rituals={data.rituals} onChange={...} />               // daily rituals
+//   <RitualEditor rituals={data.workRituals} onChange={...}              // work rituals
+//                 title="Work rituals" allowWater={false} idPrefix="wr"
+//                 addLabel="Add work ritual" />
+//
 // Tap type collapses two booleans (twice, water) into a single tri-state
 // dropdown at the UI layer. Storage stays as separate booleans, plus an
 // optional `waterTaps` number (defaults to 4 when missing).
-//
-// This keeps the schema additive — existing data works untouched.
 
-import { COLORS, FONTS, inputStyle } from '../utils/theme';
 import ListEditor from './ListEditor';
+import {
+  Field,
+  NameField,
+  PtsField,
+  StandardRow,
+  validateName,
+  validatePts,
+} from './EditorFields';
+import { inputStyle } from '../utils/theme';
 
 // ============================================================
 // TAP TYPE — bidirectional mapping to/from twice + water flags
 // ============================================================
 
-const TAP_TYPES = [
+const ALL_TAP_TYPES = [
   { value: 'single', label: 'Single tap (full points)' },
   { value: 'twice', label: 'Two taps (half then full)' },
   { value: 'water', label: 'Water (500ml increments)' },
@@ -41,27 +55,14 @@ function applyTapType(updateDraft, type) {
 }
 
 // ============================================================
-// FACTORIES + VALIDATION
+// VALIDATION
 // ============================================================
 
-function makeNewRitual() {
-  return {
-    id: `ritual_${Date.now()}`,
-    name: '',
-    pts: 10,
-    twice: false,
-    water: false,
-  };
-}
-
 function validateRitual(item) {
-  if (!item.name || !item.name.trim()) {
-    return 'Name is required.';
-  }
-  const pts = Number(item.pts);
-  if (!Number.isFinite(pts) || pts <= 0) {
-    return 'Points must be a number greater than 0.';
-  }
+  const nameErr = validateName(item);
+  if (nameErr) return nameErr;
+  const ptsErr = validatePts(item);
+  if (ptsErr) return ptsErr;
   if (item.water) {
     const taps = Number(item.waterTaps ?? 4);
     if (!Number.isInteger(taps) || taps < 1) {
@@ -72,29 +73,53 @@ function validateRitual(item) {
 }
 
 // ============================================================
-// MAIN — what the parent (SettingsTab) actually uses
+// MAIN
 // ============================================================
 
-export default function RitualEditor({ rituals, onChange }) {
+export default function RitualEditor({
+  rituals,
+  onChange,
+  title = 'Daily Rituals',
+  addLabel = 'Add ritual',
+  idPrefix = 'ritual',
+  defaultPts = 10,
+  allowWater = true,
+}) {
+  const tapTypes = allowWater
+    ? ALL_TAP_TYPES
+    : ALL_TAP_TYPES.filter((t) => t.value !== 'water');
+
+  const makeNewRitual = () => ({
+    id: `${idPrefix}_${Date.now()}`,
+    name: '',
+    pts: defaultPts,
+    twice: false,
+    water: false,
+  });
+
   return (
     <ListEditor
-      title="Daily Rituals"
+      title={title}
       sub={`${rituals.length} item${rituals.length === 1 ? '' : 's'}`}
       items={rituals}
       onChange={onChange}
       makeNewItem={makeNewRitual}
       validate={validateRitual}
-      addLabel="Add ritual"
+      addLabel={addLabel}
       renderRow={(item) => <RitualRowDisplay item={item} />}
       renderEditor={(draft, updateDraft) => (
-        <RitualFields draft={draft} updateDraft={updateDraft} />
+        <RitualFields
+          draft={draft}
+          updateDraft={updateDraft}
+          tapTypes={tapTypes}
+        />
       )}
     />
   );
 }
 
 // ============================================================
-// DISPLAY ROW — what the user sees when not editing
+// DISPLAY ROW
 // ============================================================
 
 function RitualRowDisplay({ item }) {
@@ -106,66 +131,25 @@ function RitualRowDisplay({ item }) {
         ? 'two taps'
         : 'single';
 
-  return (
-    <div
-      style={{ display: 'flex', alignItems: 'baseline', gap: '0.85rem' }}
-    >
-      <span
-        style={{
-          fontSize: '0.95rem',
-          color: COLORS.text,
-          letterSpacing: '-0.005em',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {item.name}
-      </span>
-      <span
-        style={{
-          fontFamily: FONTS.mono,
-          fontSize: '0.7rem',
-          color: COLORS.textMuted,
-          letterSpacing: '0.04em',
-        }}
-      >
-        {tapLabel}
-      </span>
-      <span
-        style={{
-          marginLeft: 'auto',
-          color: COLORS.accent,
-          fontFamily: FONTS.mono,
-          fontSize: '0.8rem',
-          flexShrink: 0,
-        }}
-      >
-        +{item.pts}
-      </span>
-    </div>
-  );
+  return <StandardRow item={item} meta={tapLabel} />;
 }
 
 // ============================================================
-// EDIT FIELDS — the form that appears when editing/adding
+// EDIT FIELDS
 // ============================================================
 
-function RitualFields({ draft, updateDraft }) {
+function RitualFields({ draft, updateDraft, tapTypes }) {
   const tapType = getTapType(draft);
+  const showWaterTaps =
+    tapType === 'water' && tapTypes.some((t) => t.value === 'water');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-      <Field label="Name">
-        <input
-          type="text"
-          value={draft.name}
-          onChange={(e) => updateDraft({ name: e.target.value })}
-          style={{ ...inputStyle, width: '100%' }}
-          autoFocus
-          placeholder="e.g. Morning skincare"
-        />
-      </Field>
+      <NameField
+        value={draft.name}
+        onChange={(name) => updateDraft({ name })}
+        placeholder="e.g. Morning skincare"
+      />
 
       <div
         style={{
@@ -174,22 +158,17 @@ function RitualFields({ draft, updateDraft }) {
           gap: '0.6rem',
         }}
       >
-        <Field label="Points">
-          <input
-            type="number"
-            min="1"
-            value={draft.pts}
-            onChange={(e) => updateDraft({ pts: Number(e.target.value) })}
-            style={{ ...inputStyle, width: '100%' }}
-          />
-        </Field>
+        <PtsField
+          value={draft.pts}
+          onChange={(pts) => updateDraft({ pts })}
+        />
         <Field label="Tap behavior">
           <select
             value={tapType}
             onChange={(e) => applyTapType(updateDraft, e.target.value)}
             style={{ ...inputStyle, width: '100%', cursor: 'pointer' }}
           >
-            {TAP_TYPES.map((t) => (
+            {tapTypes.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
               </option>
@@ -198,7 +177,7 @@ function RitualFields({ draft, updateDraft }) {
         </Field>
       </div>
 
-      {tapType === 'water' && (
+      {showWaterTaps && (
         <Field label="Max water taps (each tap = 500ml, +2 pts)">
           <input
             type="number"
@@ -212,25 +191,5 @@ function RitualFields({ draft, updateDraft }) {
         </Field>
       )}
     </div>
-  );
-}
-
-// Tiny shared label-wrapper so every field has the same uppercase mono caption
-function Field({ label, children }) {
-  return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-      <span
-        style={{
-          fontFamily: FONTS.mono,
-          fontSize: '0.62rem',
-          color: COLORS.textMuted,
-          letterSpacing: '0.12em',
-          textTransform: 'uppercase',
-        }}
-      >
-        {label}
-      </span>
-      {children}
-    </label>
   );
 }

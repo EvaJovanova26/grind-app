@@ -4,7 +4,8 @@
 // Plumbing for storage lives in utils/storage.js — this is just UI.
 //
 // Section order (top → bottom):
-//   1. Edit content   ← NEW (commit A: Rituals only; B + C add the other 7 lists)
+//   1. Edit content   ← rituals, intentions, work rituals, weekly + monthly rhythms
+//                       (commit C will add commitments, penalties, rewards)
 //   2. Data           (export/import backups)
 //   3. App info       (counts, schema version)
 //   4. Maintenance    (forgive aging penalties, recalculate totals)
@@ -21,6 +22,8 @@ import {
   secondaryButtonStyle,
 } from '../utils/theme';
 import RitualEditor from '../components/RitualEditor';
+import IntentionEditor from '../components/IntentionEditor';
+import RhythmEditor from '../components/RhythmEditor';
 
 // ============================================================
 // MAIN
@@ -77,16 +80,16 @@ const descStyle = {
 };
 
 // ============================================================
-// EDIT CONTENT — NEW
+// EDIT CONTENT
 // ============================================================
 //
-// Wraps the per-list editors. Currently only Rituals (commit A).
-// Commit B will add: Intentions (×3), Work Rituals, Weekly + Monthly Rhythms.
-// Commit C will add: Commitments, Penalties, Rewards.
+// All per-list editors live here. updateField is a tiny helper that
+// produces an onChange suitable for any single top-level data key —
+// avoids writing five near-identical setter functions.
 
 function EditContentSection({ data, setData }) {
-  const updateRituals = (rituals) =>
-    setData((prev) => ({ ...prev, rituals }));
+  const updateField = (key) => (value) =>
+    setData((prev) => ({ ...prev, [key]: value }));
 
   return (
     <section>
@@ -97,7 +100,38 @@ function EditContentSection({ data, setData }) {
         an item hides it from lists going forward; historical points stay in
         your totals.
       </p>
-      <RitualEditor rituals={data.rituals} onChange={updateRituals} />
+
+      <RitualEditor
+        rituals={data.rituals}
+        onChange={updateField('rituals')}
+      />
+
+      <IntentionEditor
+        intentions={data.intentions}
+        onChange={updateField('intentions')}
+      />
+
+      <RitualEditor
+        rituals={data.workRituals}
+        onChange={updateField('workRituals')}
+        title="Work rituals"
+        addLabel="Add work ritual"
+        idPrefix="wr"
+        defaultPts={10}
+        allowWater={false}
+      />
+
+      <RhythmEditor
+        cadence="weekly"
+        rhythms={data.weeklyRhythms}
+        onChange={updateField('weeklyRhythms')}
+      />
+
+      <RhythmEditor
+        cadence="monthly"
+        rhythms={data.monthlyRhythms}
+        onChange={updateField('monthlyRhythms')}
+      />
     </section>
   );
 }
