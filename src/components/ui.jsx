@@ -1,25 +1,12 @@
 // src/components/ui.jsx
 //
 // Shared UI primitives. Every tab imports from here.
-//
-// Components in this file:
-//   Wordmark           — the "nudge." logotype
-//   Widget             — generic card wrapper
-//   WidgetLabel        — small uppercase mono caption
-//   SectionHead        — Fraunces title + subtitle
-//   Check              — 3-state checkbox (empty/partial/full) with lime glow
-//   MetricCard         — dashboard metric tile (label + big number)
-//   PerfectDayRing     — circular progress ring tracking daily completion
-//   PenaltyJarVisual   — SVG jar that fills with red liquid as fines accrue
 
 import { COLORS, FONTS } from '../utils/theme';
 
 // ============================================================
 // WORDMARK
 // ============================================================
-//
-// The "nudge." logotype. Geist 600, tight letter-spacing, lime dot.
-// Used in the App header and anywhere we need to display the brand.
 
 export function Wordmark({ size = 26 }) {
   return (
@@ -40,12 +27,8 @@ export function Wordmark({ size = 26 }) {
 }
 
 // ============================================================
-// WIDGET — generic card wrapper
+// WIDGET
 // ============================================================
-//
-// The standard card treatment used across the app. An optional `accent`
-// prop tints the border (used for "viewing past" amber, etc.). An optional
-// `onClick` makes it interactive with a hover state.
 
 export function Widget({ children, padding = '1rem 1.1rem', accent, onClick, style = {} }) {
   return (
@@ -74,7 +57,7 @@ export function Widget({ children, padding = '1rem 1.1rem', accent, onClick, sty
 }
 
 // ============================================================
-// WIDGET LABEL — small uppercase mono caption
+// WIDGET LABEL
 // ============================================================
 
 export function WidgetLabel({ children, color }) {
@@ -92,13 +75,8 @@ export function WidgetLabel({ children, color }) {
 }
 
 // ============================================================
-// SECTION HEAD — Fraunces title + mono sub
+// SECTION HEAD
 // ============================================================
-//
-// The standard "title with progress count" pattern used in every tab.
-// `title` renders in Fraunces serif. `sub` is mono and dim by default,
-// but takes an `accent` color when something celebratory should pop
-// (e.g. lime when a section is fully complete).
 
 export function SectionHead({ title, sub, accent, right }) {
   return (
@@ -135,17 +113,8 @@ export function SectionHead({ title, sub, accent, right }) {
 }
 
 // ============================================================
-// CHECK — 3-state checkbox with lime glow
+// CHECK
 // ============================================================
-//
-// The signature interactive element. Three visual states:
-//   'empty'   → outline only, dim border
-//   'partial' → soft lime tint with "½" mark (for 2x-tap rituals at 1 tap)
-//   'full'    → solid lime fill with checkmark and glow
-//
-// For water rituals (which cycle through 4 levels), pass 'partial' for
-// any non-zero/non-full state — the user reads the actual progress from
-// the points label next to the row, not the checkbox.
 
 export function Check({ state = 'empty', onClick, size = 18 }) {
   const isFull = state === 'full';
@@ -201,12 +170,8 @@ export function Check({ state = 'empty', onClick, size = 18 }) {
 }
 
 // ============================================================
-// METRIC CARD — dashboard-strip tile
+// METRIC CARD
 // ============================================================
-//
-// The "POINTS / 0" pattern. Mono label on top, Fraunces big number below,
-// optional caption underneath. Used for Today's score row, Week summary,
-// Rewards balance/jar.
 
 export function MetricCard({ label, value, caption, color, accent }) {
   return (
@@ -238,26 +203,29 @@ export function MetricCard({ label, value, caption, color, accent }) {
 }
 
 // ============================================================
-// PERFECT DAY RING — circular progress visualization
+// PERFECT DAY RING — points-driven, with criteria checklist
 // ============================================================
 //
-// Takes an array of criteria, each shaped { label, val, target }.
-// Renders a circular ring whose fill = average completion across criteria.
-// When ALL criteria hit their target, ring goes magenta with "Perfect" badge.
-//
-// Used on TodayTab, beneath the score cards.
+// Props:
+//   points    — number, today's cumulative points
+//   threshold — number, the magenta threshold (default 250)
+//   criteria  — array of { label, met (boolean), detail (string, optional) }
+//   isPerfect — boolean, true when ALL criteria met AND points >= threshold
 
-export function PerfectDayRing({ criteria }) {
-  const progress = criteria.length > 0
-    ? criteria.reduce((s, c) => s + Math.min(1, c.val / c.target), 0) / criteria.length
-    : 0;
-  const isPerfect = criteria.length > 0 && criteria.every(c => c.val >= c.target);
+export function PerfectDayRing({
+  points = 0,
+  threshold = 250,
+  criteria = [],
+  isPerfect = false,
+}) {
+  const overThreshold = points >= threshold;
+  const fillFraction = Math.min(1, points / threshold);
+  const ringColor = overThreshold ? COLORS.magenta : COLORS.accent;
 
-  const size = 88;
+  const size = 92;
   const stroke = 6;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
-  const ringColor = isPerfect ? COLORS.magenta : COLORS.accent;
 
   return (
     <div style={{
@@ -268,8 +236,7 @@ export function PerfectDayRing({ criteria }) {
       borderRadius: 16,
       padding: 16,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        {/* The ring itself */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
         <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
           <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
             <circle
@@ -288,15 +255,14 @@ export function PerfectDayRing({ criteria }) {
               strokeWidth={stroke}
               fill="none"
               strokeDasharray={circumference}
-              strokeDashoffset={circumference * (1 - progress)}
+              strokeDashoffset={circumference * (1 - fillFraction)}
               strokeLinecap="round"
               style={{
-                transition: 'stroke-dashoffset 0.6s',
-                filter: `drop-shadow(0 0 6px ${ringColor}66)`,
+                transition: 'stroke-dashoffset 0.6s, stroke 0.3s',
+                filter: `drop-shadow(0 0 7px ${ringColor}66)`,
               }}
             />
           </svg>
-          {/* Centered number */}
           <div style={{
             position: 'absolute',
             inset: 0,
@@ -307,25 +273,26 @@ export function PerfectDayRing({ criteria }) {
             fontFamily: FONTS.display,
           }}>
             <div style={{
-              fontSize: 24,
-              color: COLORS.text,
+              fontSize: 22,
+              color: overThreshold ? COLORS.magenta : COLORS.text,
               lineHeight: 1,
               letterSpacing: '-0.02em',
+              transition: 'color 0.3s',
             }}>
-              {Math.round(progress * 100)}
+              {points}
             </div>
             <div style={{
               fontFamily: FONTS.mono,
               fontSize: 8,
               color: COLORS.textMuted,
               letterSpacing: '0.1em',
+              marginTop: 2,
             }}>
-              PCT
+              PTS
             </div>
           </div>
         </div>
 
-        {/* Right side: title + criteria checklist */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             display: 'flex',
@@ -360,55 +327,65 @@ export function PerfectDayRing({ criteria }) {
               </span>
             )}
           </div>
+          <div style={{
+            fontFamily: FONTS.mono,
+            fontSize: 10,
+            color: overThreshold ? COLORS.magenta : COLORS.textMuted,
+            letterSpacing: '0.06em',
+            marginBottom: 10,
+          }}>
+            {overThreshold
+              ? `+${points - threshold} over threshold`
+              : `${threshold - points} pts to threshold`}
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {criteria.map(c => {
-              const done = c.val >= c.target;
-              return (
-                <div key={c.label} style={{
+            {criteria.map(c => (
+              <div key={c.label} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 12,
+              }}>
+                <div style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 3,
+                  flexShrink: 0,
+                  border: `1.5px solid ${c.met ? COLORS.accent : COLORS.hairHot}`,
+                  background: c.met ? COLORS.accent : 'transparent',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  fontSize: 12,
+                  justifyContent: 'center',
                 }}>
-                  <div style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: 3,
-                    flexShrink: 0,
-                    border: `1.5px solid ${done ? COLORS.accent : COLORS.hairHot}`,
-                    background: done ? COLORS.accent : 'transparent',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
-                    {done && (
-                      <svg width="7" height="7" viewBox="0 0 10 10">
-                        <path
-                          d="M2 5 L4.2 7 L8 3"
-                          stroke={COLORS.bg}
-                          strokeWidth="2.2"
-                          fill="none"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                  <div style={{
-                    flex: 1,
-                    color: done ? COLORS.textMuted : COLORS.text,
-                  }}>
-                    {c.label}
-                  </div>
+                  {c.met && (
+                    <svg width="7" height="7" viewBox="0 0 10 10">
+                      <path
+                        d="M2 5 L4.2 7 L8 3"
+                        stroke={COLORS.bg}
+                        strokeWidth="2.2"
+                        fill="none"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  )}
+                </div>
+                <div style={{
+                  flex: 1,
+                  color: c.met ? COLORS.textMuted : COLORS.text,
+                }}>
+                  {c.label}
+                </div>
+                {c.detail && (
                   <div style={{
                     fontFamily: FONTS.mono,
-                    fontSize: 10.5,
-                    color: done ? COLORS.accent : COLORS.textMuted,
+                    fontSize: 10,
+                    color: c.met ? COLORS.accent : COLORS.textMuted,
                   }}>
-                    {c.val}/{c.target}
+                    {c.detail}
                   </div>
-                </div>
-              );
-            })}
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -417,14 +394,8 @@ export function PerfectDayRing({ criteria }) {
 }
 
 // ============================================================
-// PENALTY JAR VISUAL — SVG jar that fills with red liquid
+// PENALTY JAR VISUAL
 // ============================================================
-//
-// Renders an SVG jar showing penalty accumulation visually.
-// `total` = current £ in jar. `cap` = the visual fill ceiling
-// (jar visualizes fullness relative to this; default £50).
-//
-// Used on RewardsTab in place of (or alongside) the JarCard.
 
 export function PenaltyJarVisual({ total = 0, cap = 50 }) {
   const fillPct = Math.min(1, total / cap);
@@ -448,7 +419,6 @@ export function PenaltyJarVisual({ total = 0, cap = 50 }) {
           </clipPath>
         </defs>
 
-        {/* Liquid fill (clipped to jar shape) */}
         <g clipPath="url(#jarBody)">
           <rect
             x="0"
@@ -468,7 +438,6 @@ export function PenaltyJarVisual({ total = 0, cap = 50 }) {
           )}
         </g>
 
-        {/* Jar outline */}
         <path
           d="M 16 38 Q 16 34 20 34 L 76 34 Q 80 34 80 38 L 80 124 Q 80 130 74 130 L 22 130 Q 16 130 16 124 Z"
           fill="none"
@@ -476,20 +445,17 @@ export function PenaltyJarVisual({ total = 0, cap = 50 }) {
           strokeWidth="1.5"
         />
 
-        {/* Neck */}
         <rect
           x="22" y="26" width="52" height="8" rx="1.5"
           fill="none" stroke={COLORS.hairHot} strokeWidth="1.5"
         />
 
-        {/* Lid */}
         <rect
           x="18" y="14" width="60" height="14" rx="2"
           fill={COLORS.bg2} stroke={COLORS.hairHot} strokeWidth="1.5"
         />
         <line x1="24" y1="21" x2="72" y2="21" stroke={COLORS.hairBright} strokeWidth="1" />
 
-        {/* Tick marks on right */}
         <g stroke={COLORS.hairBright} strokeWidth="0.8">
           <line x1="84" y1="46" x2="88" y2="46" />
           <line x1="84" y1="68" x2="88" y2="68" />
@@ -497,7 +463,6 @@ export function PenaltyJarVisual({ total = 0, cap = 50 }) {
           <line x1="84" y1="112" x2="88" y2="112" />
         </g>
 
-        {/* Label area on jar front */}
         <rect
           x="24" y="60" width="48" height="42" rx="1.5"
           fill={COLORS.bg} stroke={COLORS.hairBright} strokeWidth="0.8"

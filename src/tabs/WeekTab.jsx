@@ -1,7 +1,13 @@
 // src/tabs/WeekTab.jsx
 //
 // The Week tab: weekly + monthly rhythms.
-// Tracks medium-cadence behaviors that don't belong on a daily list.
+//
+// In v7+:
+//   - Ticking a rhythm stores today's date as the value (not just `true`)
+//   - Points are earned on the day of the tick, contributing to that day's
+//     Perfect Day ring
+//   - Unticking is allowed but prompts the user with the original tick date
+//   - Past Perfect Day rings retain their points even after untick
 
 import { useState } from 'react';
 import {
@@ -10,13 +16,10 @@ import {
   currentMonthKey,
   daysBetween,
   addDays,
+  formatShort,
 } from '../utils/dates';
 import { COLORS, FONTS, cardStyle, secondaryButtonStyle } from '../utils/theme';
 import { Check, MetricCard, SectionHead } from '../components/ui';
-
-// ============================================================
-// MAIN
-// ============================================================
 
 export default function WeekTab({ data, setData }) {
   const weekKey = startOfWeek(todayISO());
@@ -37,13 +40,14 @@ export default function WeekTab({ data, setData }) {
 }
 
 // ============================================================
-// TOP SUMMARY — two MetricCards
+// SUMMARY CARDS
 // ============================================================
 
 function WeekSummary({ data, weekKey, monthKey }) {
   const weeklyChecks = data.weeklyChecks[weekKey] || {};
   const monthlyChecks = data.monthlyChecks[monthKey] || {};
 
+  // Truthy check works for both `true` and date-string values
   const weeklyDone = Object.values(weeklyChecks).filter(Boolean).length;
   const weeklyTotal = data.weeklyRhythms.length;
 
@@ -85,54 +89,71 @@ function WeeklySection({ data, setData, weekKey }) {
 
   return (
     <section style={{ marginBottom: '2rem' }}>
-      <SectionHead
-        title="Weekly Rhythms"
-        sub="Resets Monday"
-      />
-
+      <SectionHead title="Weekly Rhythms" sub="Resets Monday" />
       <div style={{ ...cardStyle, padding: '0.5rem' }}>
-        {data.weeklyRhythms.map((r, idx) => (
-          <RhythmRow
-            key={r.id}
-            rhythm={r}
-            done={!!checks[r.id]}
-            carried={isCarriedOver(data, r.id, weekKey)}
-            onToggle={() => toggleWeekly(data, setData, weekKey, r)}
-            isLast={idx === data.weeklyRhythms.length - 1}
-          />
-        ))}
+        {data.weeklyRhythms.map((r, idx) => {
+          const tickDate = checks[r.id] || null;
+          return (
+            <RhythmRow
+              key={r.id}
+              rhythm={r}
+              tickDate={tickDate}
+              carried={isCarriedOver(data, r.id, weekKey)}
+              onClick={() => handleWeeklyClick(data, setData, weekKey, r, tickDate)}
+              isLast={idx === data.weeklyRhythms.length - 1}
+            />
+          );
+        })}
       </div>
     </section>
   );
 }
 
-function toggleWeekly(data, setData, weekKey, rhythm) {
+function handleWeeklyClick(data, setData, weekKey, rhythm, tickDate) {
+  if (tickDate) {
+    // Currently ticked — confirm before unticking
+    const niceDate = formatShort(tickDate);
+    const ok = confirm(
+      `Untick "${rhythm.name}"?\n\n` +
+      `It was ticked on ${niceDate}. Points already earned that day will stay — ` +
+      `removing the tick just makes this rhythm available again for the rest of the week.`
+    );
+    if (!ok) return;
+    untickWeekly(setData, weekKey, rhythm);
+  } else {
+    // Not ticked — add a tick for today
+    tickWeekly(setData, weekKey, rhythm);
+  }
+}
+
+function tickWeekly(setData, weekKey, rhythm) {
   setData(prev => {
     const checks = { ...(prev.weeklyChecks[weekKey] || {}) };
-    const was = !!checks[rhythm.id];
-
-    if (was) {
-      delete checks[rhythm.id];
-    } else {
-      checks[rhythm.id] = true;
-    }
-
-    const ptsDelta = was ? -rhythm.pts : rhythm.pts;
-
+    checks[rhythm.id] = todayISO();
     return {
       ...prev,
       weeklyChecks: { ...prev.weeklyChecks, [weekKey]: checks },
-      totalEarned: (prev.totalEarned || 0) + ptsDelta,
+      totalEarned: (prev.totalEarned || 0) + rhythm.pts,
     };
   });
 }
 
-// Look backwards through past weeks. If the rhythm was unchecked in a
-// prior week AND hasn't been checked yet this week, it's "carried over".
-// We only look back 3 weeks to keep things reasonable.
+function untickWeekly(setData, weekKey, rhythm) {
+  // Note: per spec, totalEarned is NOT decremented on untick.
+  // Past day's ring keeps its points; only the rhythm's "ticked" state is cleared.
+  setData(prev => {
+    const checks = { ...(prev.weeklyChecks[weekKey] || {}) };
+    delete checks[rhythm.id];
+    return {
+      ...prev,
+      weeklyChecks: { ...prev.weeklyChecks, [weekKey]: checks },
+    };
+  });
+}
+
 function isCarriedOver(data, rhythmId, currentWeekKey) {
   const currentChecks = data.weeklyChecks[currentWeekKey] || {};
-  if (currentChecks[rhythmId]) return false; // already done this week
+  if (currentChecks[rhythmId]) return false;
 
   for (let i = 1; i <= 3; i++) {
     const pastWeekKey = addDays(currentWeekKey, -7 * i);
@@ -151,56 +172,73 @@ function MonthlySection({ data, setData, monthKey }) {
 
   return (
     <section style={{ marginBottom: '2rem' }}>
-      <SectionHead
-        title="Monthly Rhythms"
-        sub="Resets 1st of month"
-      />
-
+      <SectionHead title="Monthly Rhythms" sub="Resets 1st of month" />
       <div style={{ ...cardStyle, padding: '0.5rem' }}>
-        {data.monthlyRhythms.map((r, idx) => (
-          <RhythmRow
-            key={r.id}
-            rhythm={r}
-            done={!!checks[r.id]}
-            carried={false}
-            onToggle={() => toggleMonthly(data, setData, monthKey, r)}
-            isLast={idx === data.monthlyRhythms.length - 1}
-          />
-        ))}
+        {data.monthlyRhythms.map((r, idx) => {
+          const tickDate = checks[r.id] || null;
+          return (
+            <RhythmRow
+              key={r.id}
+              rhythm={r}
+              tickDate={tickDate}
+              carried={false}
+              onClick={() => handleMonthlyClick(data, setData, monthKey, r, tickDate)}
+              isLast={idx === data.monthlyRhythms.length - 1}
+            />
+          );
+        })}
       </div>
     </section>
   );
 }
 
-function toggleMonthly(data, setData, monthKey, rhythm) {
+function handleMonthlyClick(data, setData, monthKey, rhythm, tickDate) {
+  if (tickDate) {
+    const niceDate = formatShort(tickDate);
+    const ok = confirm(
+      `Untick "${rhythm.name}"?\n\n` +
+      `It was ticked on ${niceDate}. Points already earned that day will stay — ` +
+      `removing the tick just makes this rhythm available again for the rest of the month.`
+    );
+    if (!ok) return;
+    untickMonthly(setData, monthKey, rhythm);
+  } else {
+    tickMonthly(setData, monthKey, rhythm);
+  }
+}
+
+function tickMonthly(setData, monthKey, rhythm) {
   setData(prev => {
     const checks = { ...(prev.monthlyChecks[monthKey] || {}) };
-    const was = !!checks[rhythm.id];
-
-    if (was) {
-      delete checks[rhythm.id];
-    } else {
-      checks[rhythm.id] = true;
-    }
-
-    const ptsDelta = was ? -rhythm.pts : rhythm.pts;
-
+    checks[rhythm.id] = todayISO();
     return {
       ...prev,
       monthlyChecks: { ...prev.monthlyChecks, [monthKey]: checks },
-      totalEarned: (prev.totalEarned || 0) + ptsDelta,
+      totalEarned: (prev.totalEarned || 0) + rhythm.pts,
+    };
+  });
+}
+
+function untickMonthly(setData, monthKey, rhythm) {
+  setData(prev => {
+    const checks = { ...(prev.monthlyChecks[monthKey] || {}) };
+    delete checks[rhythm.id];
+    return {
+      ...prev,
+      monthlyChecks: { ...prev.monthlyChecks, [monthKey]: checks },
     };
   });
 }
 
 // ============================================================
-// RHYTHM ROW (shared by weekly and monthly)
+// RHYTHM ROW
 // ============================================================
 
-function RhythmRow({ rhythm, done, carried, onToggle, isLast }) {
+function RhythmRow({ rhythm, tickDate, carried, onClick, isLast }) {
+  const done = !!tickDate;
   return (
     <div
-      onClick={onToggle}
+      onClick={onClick}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -222,7 +260,7 @@ function RhythmRow({ rhythm, done, carried, onToggle, isLast }) {
     >
       <Check
         state={done ? 'full' : 'empty'}
-        onClick={(e) => { e.stopPropagation(); onToggle(); }}
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
       />
       <div style={{ flex: 1 }}>
         <div style={{
@@ -234,6 +272,17 @@ function RhythmRow({ rhythm, done, carried, onToggle, isLast }) {
         }}>
           {rhythm.name}
         </div>
+        {done && tickDate && (
+          <div style={{
+            color: COLORS.textDim,
+            fontSize: '0.7rem',
+            fontFamily: FONTS.mono,
+            marginTop: '0.2rem',
+            letterSpacing: '0.04em',
+          }}>
+            ticked {formatShort(tickDate)}
+          </div>
+        )}
         {carried && (
           <div style={{
             color: COLORS.amber,
@@ -334,10 +383,7 @@ function CloseWeekButton({ data, setData, weekKey }) {
           >
             Noted · close week (+30)
           </button>
-          <button
-            onClick={() => setShowing(false)}
-            style={secondaryButtonStyle}
-          >
+          <button onClick={() => setShowing(false)} style={secondaryButtonStyle}>
             Not yet
           </button>
         </div>

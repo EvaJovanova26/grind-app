@@ -1,13 +1,6 @@
 // src/tabs/TodayTab.jsx
 //
-// The main daily surface. Contains:
-//   - Date nav (prev/next day)
-//   - Score cards (points, penalty jar, today's score)
-//   - Perfect Day ring (computed from rituals + intentions + work)
-//   - Daily rituals (with 2x-tap and water increment mechanics)
-//   - Intentions (Body/Mind/Life)
-//   - Work rituals + today's todos
-//   - Quick penalty add button + modal
+// The main daily surface.
 
 import { useState } from 'react';
 import {
@@ -36,10 +29,16 @@ import {
   Check,
   MetricCard,
   SectionHead,
-  Widget,
   WidgetLabel,
   PerfectDayRing,
 } from '../components/ui';
+
+// Saturday = 6, Sunday = 0
+function isWeekend(isoDate) {
+  const d = new Date(isoDate + 'T12:00:00');
+  const day = d.getDay();
+  return day === 0 || day === 6;
+}
 
 // ============================================================
 // MAIN
@@ -50,31 +49,59 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
 
   const monthKey = currentMonthKey();
   const viewingPast = isPast(viewDate);
-  const canLogPenalty = isToday(viewDate); // penalties only logged for today
+  const canLogPenalty = isToday(viewDate);
+  const weekend = isWeekend(viewDate);
 
-  // Compute Perfect Day criteria
+  // Today's cumulative points across ALL sources (incl. weekly/monthly rhythms ticked today)
+  const todayPoints = totalPointsForDate(data, viewDate);
+
+  // ── Criterion 1: Rituals (≥75% of daily rituals fully done) ──
   const ritualsDone = ritualsCompletedCount(data, viewDate);
   const ritualsTotal = data.rituals.length;
+  const ritualPct = ritualsTotal > 0 ? ritualsDone / ritualsTotal : 0;
+  const ritualsMet = ritualPct >= 0.75;
 
+  // ── Criterion 2: Intentions (≥3 ticked across all 3 categories) ──
   const intentionsDone = intentionsCompletedCount(data, viewDate);
   const intentionsTotal =
     data.intentions.body.length +
     data.intentions.mind.length +
     data.intentions.life.length;
+  const intentionsMet = intentionsDone >= 3;
 
-  // Work = work rituals (any taps) + today's todos done
+  // ── Criterion 3: Work + tasks (weekday) / Tasks only (weekend) ──
   const workRitualChecks = data.workRitualChecks[viewDate] || {};
-  const workRitualsDone = Object.values(workRitualChecks).filter(v => v > 0).length;
+  const workRitualsDone = data.workRituals.filter(wr => {
+    const taps = workRitualChecks[wr.id] || 0;
+    const maxTaps = wr.twice ? 2 : 1;
+    return taps >= maxTaps;
+  }).length;
+  const workRitualsTotal = data.workRituals.length;
   const todaysTodos = data.workTodos[viewDate] || [];
   const todosDone = todaysTodos.filter(t => t.done).length;
-  const workDone = workRitualsDone + todosDone;
-  const workTotal = data.workRituals.length + todaysTodos.length;
+  const todosTotal = todaysTodos.length;
+
+  let workMet, workLabel, workDetail;
+  if (weekend) {
+    workMet = todosTotal > 0 && todosDone === todosTotal;
+    workLabel = 'All daily tasks';
+    workDetail = `${todosDone}/${todosTotal}`;
+  } else {
+    const allWorkRituals = workRitualsDone === workRitualsTotal && workRitualsTotal > 0;
+    const allTodos = todosTotal === 0 || todosDone === todosTotal;
+    workMet = allWorkRituals && allTodos;
+    workLabel = 'All work + tasks';
+    workDetail = `${workRitualsDone + todosDone}/${workRitualsTotal + todosTotal}`;
+  }
 
   const perfectDayCriteria = [
-    { label: 'All rituals', val: ritualsDone, target: ritualsTotal },
-    { label: 'All intentions', val: intentionsDone, target: intentionsTotal },
-    { label: 'All work + tasks', val: workDone, target: workTotal },
+    { label: 'Rituals (75%+)', met: ritualsMet, detail: `${ritualsDone}/${ritualsTotal}` },
+    { label: 'Intentions (3+)', met: intentionsMet, detail: `${intentionsDone}` },
+    { label: workLabel, met: workMet, detail: workDetail },
   ];
+
+  // Perfect Day = all 3 criteria met AND points ≥ 250
+  const isPerfect = ritualsMet && intentionsMet && workMet && todayPoints >= 250;
 
   return (
     <div style={{
@@ -82,7 +109,6 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
       maxWidth: '1200px',
       margin: '0 auto',
     }}>
-      {/* Viewing past banner */}
       {viewingPast && (
         <div style={{
           background: COLORS.amber + '14',
@@ -117,18 +143,19 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
         </div>
       )}
 
-      {/* Date nav */}
       <DateNav viewDate={viewDate} setViewDate={setViewDate} />
 
-      {/* Score cards */}
       <ScoreCards data={data} viewDate={viewDate} monthKey={monthKey} />
 
-      {/* Perfect Day ring */}
       <div style={{ marginBottom: '2rem' }}>
-        <PerfectDayRing criteria={perfectDayCriteria} />
+        <PerfectDayRing
+          points={todayPoints}
+          threshold={250}
+          criteria={perfectDayCriteria}
+          isPerfect={isPerfect}
+        />
       </div>
 
-      {/* Daily rituals */}
       <Section
         title="Daily Rituals"
         sub={`${ritualsDone}/${ritualsTotal}`}
@@ -137,17 +164,14 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
         <RitualList data={data} setData={setData} viewDate={viewDate} />
       </Section>
 
-      {/* Intentions */}
       <Section title="Intentions" sub={`${intentionsDone}/${intentionsTotal}`}>
         <IntentionsView data={data} setData={setData} viewDate={viewDate} />
       </Section>
 
-      {/* Work */}
       <Section title="Work">
         <WorkView data={data} setData={setData} viewDate={viewDate} />
       </Section>
 
-      {/* Floating penalty button */}
       {canLogPenalty && (
         <button
           onClick={() => setPenaltyModalOpen(true)}
@@ -173,7 +197,6 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
         </button>
       )}
 
-      {/* Penalty modal */}
       {penaltyModalOpen && (
         <PenaltyModal
           data={data}
@@ -186,7 +209,7 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
 }
 
 // ============================================================
-// SECTION WRAPPER (just SectionHead + content with consistent spacing)
+// SECTION WRAPPER
 // ============================================================
 
 function Section({ title, sub, accent, children }) {
@@ -259,7 +282,7 @@ const navBtnStyle = {
 };
 
 // ============================================================
-// SCORE CARDS — three MetricCards in a row
+// SCORE CARDS
 // ============================================================
 
 function ScoreCards({ data, viewDate, monthKey }) {
@@ -316,7 +339,6 @@ function RitualList({ data, setData, viewDate }) {
 }
 
 function RitualRow({ ritual, taps, onTap, isLast }) {
-  // Determine max taps for this ritual
   let maxTaps;
   if (ritual.water) maxTaps = 4;
   else if (ritual.twice) maxTaps = 2;
@@ -325,7 +347,6 @@ function RitualRow({ ritual, taps, onTap, isLast }) {
   const fullyDone = taps >= maxTaps;
   const partial = taps > 0 && !fullyDone;
 
-  // Points display
   let ptsLabel;
   if (ritual.water) {
     ptsLabel = `${taps * 500}ml / 2L · +${taps * 2}`;
@@ -357,7 +378,7 @@ function RitualRow({ ritual, taps, onTap, isLast }) {
       />
       <span style={{
         flex: 1,
-         textDecorationLine: fullyDone ? 'line-through' : 'none',
+        textDecorationLine: fullyDone ? 'line-through' : 'none',
         textDecorationColor: COLORS.textDim,
         color: fullyDone ? COLORS.textMuted : COLORS.text,
         fontSize: '0.95rem',
@@ -376,7 +397,6 @@ function RitualRow({ ritual, taps, onTap, isLast }) {
   );
 }
 
-// Cycle tap state: 0 → 1 → 2 → ... → max → 0
 function cycleRitualTap(data, setData, viewDate, ritual) {
   let maxTaps;
   if (ritual.water) maxTaps = 4;
@@ -412,7 +432,7 @@ function cycleRitualTap(data, setData, viewDate, ritual) {
 }
 
 // ============================================================
-// INTENTIONS (Body / Mind / Life)
+// INTENTIONS
 // ============================================================
 
 function IntentionsView({ data, setData, viewDate }) {
@@ -536,7 +556,7 @@ function toggleIntention(data, setData, viewDate, item) {
 }
 
 // ============================================================
-// WORK (rituals + today's todos)
+// WORK
 // ============================================================
 
 function WorkView({ data, setData, viewDate }) {
@@ -599,7 +619,6 @@ function WorkView({ data, setData, viewDate }) {
 
   return (
     <div>
-      {/* Work rituals */}
       <div style={{ ...cardStyle, padding: '0.5rem', marginBottom: '1rem' }}>
         <div style={{ padding: '0.5rem 0.75rem 0.4rem' }}>
           <WidgetLabel>Daily habits</WidgetLabel>
@@ -615,7 +634,6 @@ function WorkView({ data, setData, viewDate }) {
         ))}
       </div>
 
-      {/* Today's todos */}
       <div style={{ ...cardStyle, padding: '1rem 1.1rem' }}>
         <div style={{ marginBottom: '0.85rem' }}>
           <WidgetLabel>Today's tasks</WidgetLabel>
@@ -685,7 +703,6 @@ function WorkView({ data, setData, viewDate }) {
           </div>
         ))}
 
-        {/* Add todo */}
         <div style={{
           display: 'flex',
           gap: '0.5rem',
