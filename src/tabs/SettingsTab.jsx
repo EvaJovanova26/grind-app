@@ -6,26 +6,17 @@
 import { useRef, useState } from 'react';
 import { exportJSON, importJSON, loadData, saveData } from '../utils/storage';
 import { freshV6State } from '../utils/migration';
+import {
+  COLORS,
+  FONTS,
+  cardStyle,
+  primaryButtonStyle,
+  secondaryButtonStyle,
+} from '../utils/theme';
 
-const COLORS = {
-  bg: '#0a0a0a',
-  card: '#141414',
-  cardHover: '#1a1a1a',
-  border: '#222',
-  text: '#e8e8e8',
-  textDim: '#888',
-  textFaint: '#555',
-  accent: '#d9f66f',
-  danger: '#ef4444',
-  warning: '#f59e0b',
-};
-
-const cardStyle = {
-  background: COLORS.card,
-  border: `1px solid ${COLORS.border}`,
-  borderRadius: '12px',
-  padding: '1.25rem',
-};
+// ============================================================
+// MAIN
+// ============================================================
 
 export default function SettingsTab({ data, setData }) {
   return (
@@ -44,6 +35,33 @@ export default function SettingsTab({ data, setData }) {
     </div>
   );
 }
+
+// ============================================================
+// SECTION HEADER (local — Settings has a distinct heading style)
+// ============================================================
+
+function SettingsHeader({ title, danger }) {
+  return (
+    <h2 style={{
+      margin: '0 0 0.85rem',
+      fontFamily: FONTS.display,
+      fontSize: '1.5rem',
+      fontWeight: 400,
+      color: danger ? COLORS.red : COLORS.text,
+      letterSpacing: '-0.02em',
+    }}>
+      {title}
+    </h2>
+  );
+}
+
+const descStyle = {
+  margin: 0,
+  fontSize: '0.85rem',
+  color: COLORS.textMuted,
+  lineHeight: 1.55,
+  fontFamily: FONTS.sans,
+};
 
 // ============================================================
 // DATA EXPORT / IMPORT
@@ -94,13 +112,13 @@ function DataSection({ setData }) {
 
   return (
     <section>
-      <h2 style={headerStyle}>Data</h2>
+      <SettingsHeader title="Data" />
       <div style={cardStyle}>
         <p style={descStyle}>
           Back up your data to a JSON file, or restore from a previous backup.
           Do this before any major changes.
         </p>
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
           <button onClick={handleExport} style={primaryButtonStyle}>
             Export backup
           </button>
@@ -119,9 +137,10 @@ function DataSection({ setData }) {
         </div>
         {status && (
           <div style={{
-            marginTop: '0.75rem',
+            marginTop: '0.85rem',
             fontSize: '0.85rem',
-            color: status.type === 'success' ? COLORS.accent : COLORS.danger,
+            color: status.type === 'success' ? COLORS.accent : COLORS.red,
+            fontFamily: FONTS.sans,
           }}>
             {status.msg}
           </div>
@@ -139,7 +158,11 @@ function InfoSection({ data }) {
   const counts = [
     { label: 'Schema version', value: data.schemaVersion },
     { label: 'Rituals', value: data.rituals.length },
-    { label: 'Intentions', value: data.intentions.body.length + data.intentions.mind.length + data.intentions.life.length },
+    { label: 'Intentions', value:
+      data.intentions.body.length +
+      data.intentions.mind.length +
+      data.intentions.life.length
+    },
     { label: 'Work rituals', value: data.workRituals.length },
     { label: 'Weekly rhythms', value: data.weeklyRhythms.length },
     { label: 'Monthly rhythms', value: data.monthlyRhythms.length },
@@ -156,12 +179,12 @@ function InfoSection({ data }) {
 
   return (
     <section>
-      <h2 style={headerStyle}>App info</h2>
+      <SettingsHeader title="App info" />
       <div style={cardStyle}>
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '0.5rem',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '0.4rem 1.25rem',
         }}>
           {counts.map(c => (
             <div
@@ -171,10 +194,16 @@ function InfoSection({ data }) {
                 justifyContent: 'space-between',
                 padding: '0.4rem 0',
                 fontSize: '0.85rem',
+                fontFamily: FONTS.sans,
+                borderBottom: `1px solid ${COLORS.hair}`,
               }}
             >
-              <span style={{ color: COLORS.textDim }}>{c.label}</span>
-              <span style={{ color: COLORS.text, fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ color: COLORS.textMuted }}>{c.label}</span>
+              <span style={{
+                color: COLORS.text,
+                fontFamily: FONTS.mono,
+                fontSize: '0.8rem',
+              }}>
                 {c.value}
               </span>
             </div>
@@ -207,7 +236,6 @@ function MaintenanceSection({ data, setData }) {
   };
 
   const recalculateTotalEarned = () => {
-    // Walk all historical checks and rebuild totalEarned from scratch
     let total = 0;
 
     for (const [, checks] of Object.entries(data.ritualChecks || {})) {
@@ -263,16 +291,27 @@ function MaintenanceSection({ data, setData }) {
 
   return (
     <section>
-      <h2 style={headerStyle}>Maintenance</h2>
+      <SettingsHeader title="Maintenance" />
       <div style={cardStyle}>
         <p style={descStyle}>
           Safe to use. These fix common quirks without deleting any data.
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
-          <button onClick={forgiveAgingPenalties} style={secondaryButtonStyle}>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.5rem',
+          marginTop: '1rem',
+        }}>
+          <button
+            onClick={forgiveAgingPenalties}
+            style={{ ...secondaryButtonStyle, textAlign: 'left' }}
+          >
             Forgive backlog-aging penalties
           </button>
-          <button onClick={recalculateTotalEarned} style={secondaryButtonStyle}>
+          <button
+            onClick={recalculateTotalEarned}
+            style={{ ...secondaryButtonStyle, textAlign: 'left' }}
+          >
             Recalculate points from history
           </button>
         </div>
@@ -297,10 +336,10 @@ function DangerZone({ setData }) {
 
   return (
     <section>
-      <h2 style={{ ...headerStyle, color: COLORS.danger }}>Danger zone</h2>
+      <SettingsHeader title="Danger zone" danger />
       <div style={{
         ...cardStyle,
-        borderColor: COLORS.danger + '44',
+        borderColor: COLORS.red + '44',
       }}>
         <p style={descStyle}>
           Nuclear options. Export a backup first if you're not sure.
@@ -310,8 +349,9 @@ function DangerZone({ setData }) {
             onClick={hardReset}
             style={{
               ...secondaryButtonStyle,
-              color: COLORS.danger,
-              borderColor: COLORS.danger + '66',
+              color: COLORS.red,
+              borderColor: COLORS.red + '66',
+              textAlign: 'left',
             }}
           >
             Reset app to defaults (keeps no data)
@@ -321,43 +361,3 @@ function DangerZone({ setData }) {
     </section>
   );
 }
-
-// ============================================================
-// STYLES
-// ============================================================
-
-const headerStyle = {
-  margin: '0 0 0.75rem',
-  fontSize: '1.1rem',
-  fontWeight: 600,
-  color: COLORS.text,
-};
-
-const descStyle = {
-  margin: 0,
-  fontSize: '0.85rem',
-  color: COLORS.textDim,
-  lineHeight: 1.5,
-};
-
-const primaryButtonStyle = {
-  background: COLORS.accent,
-  color: '#000',
-  border: 'none',
-  borderRadius: '6px',
-  padding: '0.55rem 1rem',
-  fontSize: '0.9rem',
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const secondaryButtonStyle = {
-  background: 'transparent',
-  color: COLORS.text,
-  border: `1px solid ${COLORS.border}`,
-  borderRadius: '6px',
-  padding: '0.55rem 1rem',
-  fontSize: '0.9rem',
-  cursor: 'pointer',
-  textAlign: 'left',
-};

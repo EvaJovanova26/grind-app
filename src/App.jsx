@@ -5,13 +5,15 @@
 //   2. Manage the active tab
 //   3. Render the active tab with shared state and setters
 //
-// All actual content lives in tabs/ files (Delivery 3+).
+// All actual content lives in tabs/ files.
 // This file should stay small.
 
 import { useState, useEffect, useCallback } from 'react';
 import { loadData, saveData } from './utils/storage';
 import { ensureV6Schema } from './utils/migration';
 import { todayISO, formatLong } from './utils/dates';
+import { COLORS, FONTS } from './utils/theme';
+import { Wordmark } from './components/ui';
 import TodayTab from './tabs/TodayTab';
 import WeekTab from './tabs/WeekTab';
 import TasksTab from './tabs/TasksTab';
@@ -57,7 +59,11 @@ export default function App() {
   // ------ Loading state ------
   if (!data) {
     return (
-      <div style={{ padding: '2rem', fontFamily: 'system-ui' }}>
+      <div style={{
+        padding: '2rem',
+        fontFamily: FONTS.sans,
+        color: COLORS.textMuted,
+      }}>
         Loading…
       </div>
     );
@@ -69,59 +75,76 @@ export default function App() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#0a0a0a',
-      color: '#e8e8e8',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
+      background: COLORS.bg,
+      color: COLORS.text,
+      fontFamily: FONTS.sans,
     }}>
-      {/* Header */}
+      {/* Header — wordmark + date */}
       <header style={{
-        padding: '1.5rem 2rem 0',
+        padding: '1.75rem 2rem 0',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'baseline',
+        gap: '1.5rem',
+        flexWrap: 'wrap',
       }}>
-        <div>
-          <h1 style={{
-            margin: 0,
-            fontSize: '2rem',
-            fontWeight: 700,
-            letterSpacing: '-0.02em',
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem' }}>
+          <Wordmark size={32} />
+          <span style={{
+            fontFamily: FONTS.mono,
+            fontSize: '0.75rem',
+            color: COLORS.textMuted,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
           }}>
-            nudge
-          </h1>
-          <p style={{ margin: '0.25rem 0 0', opacity: 0.5, fontSize: '0.9rem' }}>
             {formatLong(viewDate)}
-          </p>
+          </span>
         </div>
       </header>
 
-      {/* Tab nav */}
+      {/* Tab nav — pill treatment, active tab gets lime text + soft surface bg */}
       <nav style={{
-        padding: '1.5rem 2rem 0',
+        padding: '1.25rem 2rem 0',
         display: 'flex',
-        gap: '0.5rem',
-        borderBottom: '1px solid #222',
+        gap: '0.25rem',
+        borderBottom: `1px solid ${COLORS.hair}`,
+        flexWrap: 'wrap',
       }}>
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              background: activeTab === tab.id ? '#1a1a1a' : 'transparent',
-              color: activeTab === tab.id ? '#d9f66f' : '#888',
-              border: 'none',
-              borderBottom: activeTab === tab.id ? '2px solid #d9f66f' : '2px solid transparent',
-              padding: '0.75rem 1.25rem',
-              fontSize: '0.95rem',
-              fontWeight: activeTab === tab.id ? 600 : 400,
-              cursor: 'pointer',
-              marginBottom: '-1px',
-              transition: 'all 0.15s',
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {TABS.map(tab => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                background: isActive ? COLORS.surface : 'transparent',
+                color: isActive ? COLORS.accent : COLORS.textMuted,
+                border: 'none',
+                borderTop: `1px solid ${isActive ? COLORS.hair : 'transparent'}`,
+                borderLeft: `1px solid ${isActive ? COLORS.hair : 'transparent'}`,
+                borderRight: `1px solid ${isActive ? COLORS.hair : 'transparent'}`,
+                borderBottom: `2px solid ${isActive ? COLORS.accent : 'transparent'}`,
+                borderRadius: '8px 8px 0 0',
+                padding: '0.65rem 1.15rem',
+                fontSize: '0.9rem',
+                fontFamily: FONTS.sans,
+                fontWeight: isActive ? 600 : 500,
+                letterSpacing: '-0.01em',
+                cursor: 'pointer',
+                marginBottom: '-1px',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) e.currentTarget.style.color = COLORS.text;
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) e.currentTarget.style.color = COLORS.textMuted;
+              }}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </nav>
 
       {/* Active tab */}

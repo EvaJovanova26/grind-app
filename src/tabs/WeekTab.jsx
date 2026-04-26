@@ -6,33 +6,17 @@
 import { useState } from 'react';
 import {
   todayISO,
-  formatLong,
   startOfWeek,
   currentMonthKey,
   daysBetween,
   addDays,
 } from '../utils/dates';
+import { COLORS, FONTS, cardStyle, secondaryButtonStyle } from '../utils/theme';
+import { Check, MetricCard, SectionHead } from '../components/ui';
 
-const COLORS = {
-  bg: '#0a0a0a',
-  card: '#141414',
-  cardHover: '#1a1a1a',
-  border: '#222',
-  text: '#e8e8e8',
-  textDim: '#888',
-  textFaint: '#555',
-  accent: '#d9f66f',
-  accentDim: '#8a9c42',
-  danger: '#ef4444',
-  warning: '#f59e0b',
-};
-
-const cardStyle = {
-  background: COLORS.card,
-  border: `1px solid ${COLORS.border}`,
-  borderRadius: '12px',
-  padding: '1.25rem',
-};
+// ============================================================
+// MAIN
+// ============================================================
 
 export default function WeekTab({ data, setData }) {
   const weekKey = startOfWeek(todayISO());
@@ -45,18 +29,15 @@ export default function WeekTab({ data, setData }) {
       margin: '0 auto',
     }}>
       <WeekSummary data={data} weekKey={weekKey} monthKey={monthKey} />
-
       <WeeklySection data={data} setData={setData} weekKey={weekKey} />
-
       <MonthlySection data={data} setData={setData} monthKey={monthKey} />
-
       <CloseWeekButton data={data} setData={setData} weekKey={weekKey} />
     </div>
   );
 }
 
 // ============================================================
-// TOP SUMMARY
+// TOP SUMMARY — two MetricCards
 // ============================================================
 
 function WeekSummary({ data, weekKey, monthKey }) {
@@ -79,39 +60,18 @@ function WeekSummary({ data, weekKey, monthKey }) {
       gap: '1rem',
       marginBottom: '2rem',
     }}>
-      <div style={cardStyle}>
-        <div style={{
-          fontSize: '0.7rem',
-          letterSpacing: '0.1em',
-          color: COLORS.textDim,
-          marginBottom: '0.5rem',
-        }}>
-          THIS WEEK
-        </div>
-        <div style={{ fontSize: '1.75rem', fontWeight: 700, color: COLORS.accent }}>
-          {weeklyDone} / {weeklyTotal}
-        </div>
-        <div style={{ fontSize: '0.8rem', color: COLORS.textFaint, marginTop: '0.25rem' }}>
-          {daysLeftInWeek >= 0 ? `${daysLeftInWeek + 1} days left` : 'Week ended'}
-        </div>
-      </div>
-
-      <div style={cardStyle}>
-        <div style={{
-          fontSize: '0.7rem',
-          letterSpacing: '0.1em',
-          color: COLORS.textDim,
-          marginBottom: '0.5rem',
-        }}>
-          THIS MONTH
-        </div>
-        <div style={{ fontSize: '1.75rem', fontWeight: 700, color: COLORS.accent }}>
-          {monthlyDone} / {monthlyTotal}
-        </div>
-        <div style={{ fontSize: '0.8rem', color: COLORS.textFaint, marginTop: '0.25rem' }}>
-          {monthKey}
-        </div>
-      </div>
+      <MetricCard
+        label="This Week"
+        value={`${weeklyDone} / ${weeklyTotal}`}
+        color={COLORS.accent}
+        caption={daysLeftInWeek >= 0 ? `${daysLeftInWeek + 1} days left` : 'Week ended'}
+      />
+      <MetricCard
+        label="This Month"
+        value={`${monthlyDone} / ${monthlyTotal}`}
+        color={COLORS.accent}
+        caption={monthKey}
+      />
     </div>
   );
 }
@@ -125,19 +85,10 @@ function WeeklySection({ data, setData, weekKey }) {
 
   return (
     <section style={{ marginBottom: '2rem' }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'baseline',
-        marginBottom: '0.75rem',
-      }}>
-        <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: COLORS.text }}>
-          Weekly Rhythms
-        </h2>
-        <span style={{ color: COLORS.textFaint, fontSize: '0.85rem' }}>
-          Resets Monday
-        </span>
-      </div>
+      <SectionHead
+        title="Weekly Rhythms"
+        sub="Resets Monday"
+      />
 
       <div style={{ ...cardStyle, padding: '0.5rem' }}>
         {data.weeklyRhythms.map((r, idx) => (
@@ -186,7 +137,6 @@ function isCarriedOver(data, rhythmId, currentWeekKey) {
   for (let i = 1; i <= 3; i++) {
     const pastWeekKey = addDays(currentWeekKey, -7 * i);
     const pastChecks = data.weeklyChecks[pastWeekKey];
-    // Only consider it "carried" if there's any data for that past week AND the item was unchecked
     if (pastChecks && !pastChecks[rhythmId]) return true;
   }
   return false;
@@ -201,19 +151,10 @@ function MonthlySection({ data, setData, monthKey }) {
 
   return (
     <section style={{ marginBottom: '2rem' }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'baseline',
-        marginBottom: '0.75rem',
-      }}>
-        <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: COLORS.text }}>
-          Monthly Rhythms
-        </h2>
-        <span style={{ color: COLORS.textFaint, fontSize: '0.85rem' }}>
-          Resets 1st of month
-        </span>
-      </div>
+      <SectionHead
+        title="Monthly Rhythms"
+        sub="Resets 1st of month"
+      />
 
       <div style={{ ...cardStyle, padding: '0.5rem' }}>
         {data.monthlyRhythms.map((r, idx) => (
@@ -257,8 +198,6 @@ function toggleMonthly(data, setData, monthKey, rhythm) {
 // ============================================================
 
 function RhythmRow({ rhythm, done, carried, onToggle, isLast }) {
-  const borderBottom = isLast ? 'none' : `1px solid ${COLORS.border}`;
-
   return (
     <div
       onClick={onToggle}
@@ -266,34 +205,42 @@ function RhythmRow({ rhythm, done, carried, onToggle, isLast }) {
         display: 'flex',
         alignItems: 'center',
         padding: '0.75rem',
-        borderBottom,
+        borderBottom: isLast ? 'none' : `1px solid ${COLORS.hair}`,
         cursor: 'pointer',
-        gap: '0.75rem',
-        background: carried ? 'rgba(245, 158, 11, 0.05)' : 'transparent',
-        borderLeft: carried ? `3px solid ${COLORS.warning}` : '3px solid transparent',
+        gap: '0.85rem',
+        background: carried ? COLORS.amber + '12' : 'transparent',
+        borderLeft: carried ? `3px solid ${COLORS.amber}` : '3px solid transparent',
         transition: 'background 0.1s',
+        borderRadius: '6px',
       }}
       onMouseEnter={(e) => {
-        if (!carried) e.currentTarget.style.background = COLORS.cardHover;
+        if (!carried) e.currentTarget.style.background = COLORS.surfaceHover;
       }}
       onMouseLeave={(e) => {
         if (!carried) e.currentTarget.style.background = 'transparent';
       }}
     >
-      <Checkbox done={done} />
+      <Check
+        state={done ? 'full' : 'empty'}
+        onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      />
       <div style={{ flex: 1 }}>
         <div style={{
-          textDecoration: done ? 'line-through' : 'none',
-          color: done ? COLORS.textFaint : COLORS.text,
+          textDecorationLine: done ? 'line-through' : 'none',
+          textDecorationColor: COLORS.textDim,
+          color: done ? COLORS.textMuted : COLORS.text,
           fontSize: '0.95rem',
+          letterSpacing: '-0.005em',
         }}>
           {rhythm.name}
         </div>
         {carried && (
           <div style={{
-            color: COLORS.warning,
-            fontSize: '0.75rem',
-            marginTop: '0.2rem',
+            color: COLORS.amber,
+            fontSize: '0.72rem',
+            fontFamily: FONTS.mono,
+            marginTop: '0.25rem',
+            letterSpacing: '0.04em',
           }}>
             Carried from last week
           </div>
@@ -301,40 +248,23 @@ function RhythmRow({ rhythm, done, carried, onToggle, isLast }) {
       </div>
       {rhythm.penalty > 0 && (
         <span style={{
-          color: COLORS.danger,
-          fontSize: '0.75rem',
+          color: COLORS.red,
+          fontSize: '0.72rem',
+          fontFamily: FONTS.mono,
           opacity: done ? 0.3 : 0.7,
         }}>
           miss: £{rhythm.penalty}
         </span>
       )}
       <span style={{
-        color: done ? COLORS.textFaint : COLORS.accent,
-        fontSize: '0.85rem',
-        fontVariantNumeric: 'tabular-nums',
+        color: done ? COLORS.textDim : COLORS.accent,
+        fontSize: '0.8rem',
+        fontFamily: FONTS.mono,
         minWidth: '2.5rem',
         textAlign: 'right',
       }}>
         +{rhythm.pts}
       </span>
-    </div>
-  );
-}
-
-function Checkbox({ done }) {
-  return (
-    <div style={{
-      width: '1.25rem',
-      height: '1.25rem',
-      border: `2px solid ${done ? COLORS.accent : COLORS.textFaint}`,
-      borderRadius: '4px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-      background: done ? COLORS.accent : 'transparent',
-    }}>
-      {done && <span style={{ color: '#000', fontSize: '0.85rem', fontWeight: 900 }}>✓</span>}
     </div>
   );
 }
@@ -354,7 +284,7 @@ function CloseWeekButton({ data, setData, weekKey }) {
   const closeWeek = () => {
     setData(prev => ({
       ...prev,
-      totalEarned: (prev.totalEarned || 0) + 30, // small bonus for closing
+      totalEarned: (prev.totalEarned || 0) + 30,
     }));
     setShowing(false);
     alert('Week closed. +30 pts for reflecting.');
@@ -363,46 +293,50 @@ function CloseWeekButton({ data, setData, weekKey }) {
   if (showing) {
     return (
       <section style={{ ...cardStyle, marginTop: '1rem' }}>
-        <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', color: COLORS.text }}>
+        <h3 style={{
+          margin: '0 0 1rem',
+          fontFamily: FONTS.display,
+          fontSize: '1.25rem',
+          fontWeight: 400,
+          letterSpacing: '-0.02em',
+          color: COLORS.text,
+        }}>
           Close the week
         </h3>
         <div style={{
           fontSize: '0.9rem',
-          color: COLORS.textDim,
+          color: COLORS.textMuted,
           marginBottom: '1rem',
           lineHeight: 1.6,
         }}>
-          You hit <strong style={{ color: COLORS.accent }}>{done}/{total}</strong> rhythms
-          this week ({percent}%).
+          You hit{' '}
+          <strong style={{ color: COLORS.accent, fontFamily: FONTS.mono }}>
+            {done}/{total}
+          </strong>{' '}
+          rhythms this week ({percent}%).
           Unfinished items will carry over to next week with an amber highlight.
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button
             onClick={closeWeek}
             style={{
               background: COLORS.accent,
-              color: '#000',
+              color: COLORS.bg,
               border: 'none',
               padding: '0.6rem 1rem',
-              borderRadius: '6px',
+              borderRadius: '8px',
               fontSize: '0.9rem',
               fontWeight: 600,
               cursor: 'pointer',
+              fontFamily: FONTS.sans,
+              letterSpacing: '-0.01em',
             }}
           >
             Noted · close week (+30)
           </button>
           <button
             onClick={() => setShowing(false)}
-            style={{
-              background: 'transparent',
-              color: COLORS.textDim,
-              border: `1px solid ${COLORS.border}`,
-              padding: '0.6rem 1rem',
-              borderRadius: '6px',
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-            }}
+            style={secondaryButtonStyle}
           >
             Not yet
           </button>
@@ -417,12 +351,23 @@ function CloseWeekButton({ data, setData, weekKey }) {
         onClick={() => setShowing(true)}
         style={{
           background: 'transparent',
-          color: COLORS.textDim,
-          border: `1px dashed ${COLORS.border}`,
-          padding: '0.6rem 1.25rem',
-          borderRadius: '6px',
+          color: COLORS.textMuted,
+          border: `1px dashed ${COLORS.hair}`,
+          padding: '0.65rem 1.25rem',
+          borderRadius: '8px',
           fontSize: '0.85rem',
           cursor: 'pointer',
+          fontFamily: FONTS.sans,
+          letterSpacing: '-0.005em',
+          transition: 'border-color 0.15s, color 0.15s',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.color = COLORS.text;
+          e.currentTarget.style.borderColor = COLORS.hairBright;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = COLORS.textMuted;
+          e.currentTarget.style.borderColor = COLORS.hair;
         }}
       >
         Close this week →

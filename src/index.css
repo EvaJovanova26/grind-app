@@ -1,0 +1,37 @@
+/* src/index.css
+   Global resets and the dark canvas everything sits on.
+   Component styles live in JS; this file only handles things that
+   must be global (body, selection, default font). */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #0c0c10;
+  color: #f4f4f5;
+  font-family: 'Geist', 'Inter', -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+}
+
+/* Selection: subtle lime tint so highlighted text feels on-brand */
+::selection {
+  background: rgba(212, 255, 61, 0.25);
+  color: #f4f4f5;
+}
+
+/* Buttons inherit the body font by default — without this they'd revert
+   to system default, which makes the whole UI feel inconsistent. */
+button {
+  font-family: inherit;
+}
+
+/* Native date input: dark color scheme so the popup picker is dark too */
+input[type="date"] {
+  color-scheme: dark;
+}

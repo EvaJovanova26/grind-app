@@ -6,26 +6,28 @@
 import { useState } from 'react';
 import { todayISO, currentMonthKey, formatShort } from '../utils/dates';
 import { currentBalance, currentMonthPenalties } from '../utils/points';
+import {
+  COLORS,
+  FONTS,
+  cardStyle,
+  inputStyle,
+  primaryButtonStyle,
+  ghostButtonStyle,
+} from '../utils/theme';
+import {
+  MetricCard,
+  SectionHead,
+  Widget,
+  WidgetLabel,
+  PenaltyJarVisual,
+} from '../components/ui';
 
-const COLORS = {
-  bg: '#0a0a0a',
-  card: '#141414',
-  cardHover: '#1a1a1a',
-  border: '#222',
-  text: '#e8e8e8',
-  textDim: '#888',
-  textFaint: '#555',
-  accent: '#d9f66f',
-  danger: '#ef4444',
-  warning: '#f59e0b',
-};
+// Visual fill cap for the jar — matches design's default
+const JAR_VISUAL_CAP = 50;
 
-const cardStyle = {
-  background: COLORS.card,
-  border: `1px solid ${COLORS.border}`,
-  borderRadius: '12px',
-  padding: '1.25rem',
-};
+// ============================================================
+// MAIN
+// ============================================================
 
 export default function RewardsTab({ data, setData }) {
   const balance = currentBalance(data);
@@ -39,14 +41,19 @@ export default function RewardsTab({ data, setData }) {
       maxWidth: '1200px',
       margin: '0 auto',
     }}>
-      {/* Balance + jar summary row */}
+      {/* Balance + jar row */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
+        gridTemplateColumns: '1fr 1.4fr',
         gap: '1rem',
         marginBottom: '2rem',
       }}>
-        <BalanceCard balance={balance} />
+        <MetricCard
+          label="Point Balance"
+          value={balance.toLocaleString()}
+          color={COLORS.accent}
+          caption="Available to spend"
+        />
         <JarCard
           amount={jarAmount}
           monthKey={monthKey}
@@ -55,100 +62,103 @@ export default function RewardsTab({ data, setData }) {
         />
       </div>
 
-      {/* Rewards grid */}
       <RewardsGrid data={data} setData={setData} balance={balance} />
-
-      {/* Penalty log */}
       <PenaltyLog data={data} monthKey={monthKey} />
-
-      {/* Claim history */}
       <ClaimHistory data={data} />
     </div>
   );
 }
 
 // ============================================================
-// BALANCE + JAR
+// JAR CARD with SVG visualization
 // ============================================================
-
-function BalanceCard({ balance }) {
-  return (
-    <div style={cardStyle}>
-      <div style={{
-        fontSize: '0.7rem',
-        letterSpacing: '0.1em',
-        color: COLORS.textDim,
-        marginBottom: '0.5rem',
-      }}>
-        POINT BALANCE
-      </div>
-      <div style={{ fontSize: '2rem', fontWeight: 700, color: COLORS.accent }}>
-        {balance.toLocaleString()}
-      </div>
-      <div style={{ fontSize: '0.8rem', color: COLORS.textFaint, marginTop: '0.25rem' }}>
-        Available to spend
-      </div>
-    </div>
-  );
-}
 
 function JarCard({ amount, monthKey, paid, onMarkPaid }) {
   return (
-    <div style={cardStyle}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'baseline',
-        marginBottom: '0.5rem',
-      }}>
+    <Widget
+      padding="14px 16px"
+      accent={paid ? COLORS.good : (amount > 0 ? COLORS.red : null)}
+    >
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'stretch' }}>
+        <PenaltyJarVisual total={amount} cap={JAR_VISUAL_CAP} />
+
         <div style={{
-          fontSize: '0.7rem',
-          letterSpacing: '0.1em',
-          color: COLORS.textDim,
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
         }}>
-          PENALTY JAR · {monthKey}
+          <div>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              marginBottom: '0.5rem',
+            }}>
+              <WidgetLabel color={paid ? COLORS.good : null}>
+                {paid ? `Jar · ${monthKey} · paid` : `Penalty Jar · ${monthKey}`}
+              </WidgetLabel>
+              {paid && (
+                <span style={{
+                  fontSize: '0.7rem',
+                  color: COLORS.good,
+                  fontWeight: 600,
+                  letterSpacing: '0.1em',
+                }}>
+                  ✓
+                </span>
+              )}
+            </div>
+            <div style={{
+              fontFamily: FONTS.display,
+              fontSize: '2.25rem',
+              fontWeight: 400,
+              color: paid ? COLORS.good : (amount > 0 ? COLORS.red : COLORS.textMuted),
+              letterSpacing: '-0.03em',
+              lineHeight: 1,
+            }}>
+              £{amount.toFixed(2)}
+            </div>
+            <div style={{
+              fontFamily: FONTS.mono,
+              fontSize: '0.7rem',
+              color: COLORS.textMuted,
+              marginTop: '0.4rem',
+              letterSpacing: '0.06em',
+            }}>
+              cap £{JAR_VISUAL_CAP} · {paid ? 'settled' : amount > 0 ? 'open' : 'empty'}
+            </div>
+          </div>
+
+          {!paid && amount > 0 && (
+            <button
+              onClick={onMarkPaid}
+              style={{
+                ...primaryButtonStyle,
+                marginTop: '0.75rem',
+                alignSelf: 'flex-start',
+                padding: '0.4rem 1rem',
+                fontSize: '0.8rem',
+              }}
+            >
+              Mark as paid
+            </button>
+          )}
+          {paid && (
+            <div style={{
+              fontSize: '0.78rem',
+              color: COLORS.textMuted,
+              marginTop: '0.5rem',
+              fontFamily: FONTS.sans,
+              fontStyle: 'italic',
+            }}>
+              Good. Fresh slate next month.
+            </div>
+          )}
         </div>
-        {paid && (
-          <span style={{
-            fontSize: '0.7rem',
-            color: COLORS.accent,
-            fontWeight: 600,
-          }}>
-            ✓ PAID
-          </span>
-        )}
       </div>
-      <div style={{
-        fontSize: '2rem',
-        fontWeight: 700,
-        color: amount > 0 ? COLORS.danger : COLORS.textFaint,
-      }}>
-        £{amount.toFixed(2)}
-      </div>
-      {!paid && amount > 0 && (
-        <button
-          onClick={onMarkPaid}
-          style={{
-            marginTop: '0.75rem',
-            background: COLORS.accent,
-            color: '#000',
-            border: 'none',
-            padding: '0.4rem 1rem',
-            borderRadius: '6px',
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          Mark as paid
-        </button>
-      )}
-      {paid && (
-        <div style={{ fontSize: '0.8rem', color: COLORS.textFaint, marginTop: '0.25rem' }}>
-          Good. Fresh slate when month rolls over.
-        </div>
-      )}
-    </div>
+    </Widget>
   );
 }
 
@@ -160,7 +170,7 @@ function markPaid(data, setData, monthKey) {
 }
 
 // ============================================================
-// REWARDS GRID
+// REWARDS GRID with progress rings
 // ============================================================
 
 function RewardsGrid({ data, setData, balance }) {
@@ -200,14 +210,11 @@ function RewardsGrid({ data, setData, balance }) {
 
   return (
     <section style={{ marginBottom: '2rem' }}>
-      <SectionHeader
+      <SectionHead
         title="Rewards"
-        count={`${data.rewards.length} types · ${balance.toLocaleString()} pts available`}
-        action={
-          <button
-            onClick={() => setShowAdd(!showAdd)}
-            style={addButtonStyle}
-          >
+        sub={`${data.rewards.length} types · ${balance.toLocaleString()} pts available`}
+        right={
+          <button onClick={() => setShowAdd(!showAdd)} style={ghostButtonStyle}>
             {showAdd ? 'Cancel' : '+ Add'}
           </button>
         }
@@ -223,99 +230,183 @@ function RewardsGrid({ data, setData, balance }) {
 
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
         gap: '0.75rem',
       }}>
-        {sorted.map(reward => {
-          const affordable = balance >= reward.cost;
-          const deficit = reward.cost - balance;
-
-          return (
-            <div
-              key={reward.id}
-              style={{
-                ...cardStyle,
-                padding: '1rem',
-                opacity: affordable ? 1 : 0.5,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.75rem',
-                cursor: affordable ? 'pointer' : 'default',
-                transition: 'transform 0.1s',
-                position: 'relative',
-              }}
-              onClick={() => affordable && claim(reward)}
-              onMouseEnter={(e) => {
-                if (affordable) e.currentTarget.style.transform = 'translateY(-2px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-              }}
-            >
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: '0.5rem',
-              }}>
-                <div style={{ fontSize: '0.95rem', color: COLORS.text, flex: 1 }}>
-                  {reward.name}
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteReward(reward.id);
-                  }}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: COLORS.textFaint,
-                    fontSize: '1rem',
-                    cursor: 'pointer',
-                    padding: '0 0.25rem',
-                    lineHeight: 1,
-                  }}
-                  aria-label="Delete reward"
-                >
-                  ×
-                </button>
-              </div>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}>
-                <span style={{
-                  color: COLORS.accent,
-                  fontWeight: 700,
-                  fontSize: '1.1rem',
-                  fontVariantNumeric: 'tabular-nums',
-                }}>
-                  {reward.cost.toLocaleString()} pts
-                </span>
-                {!affordable && (
-                  <span style={{
-                    fontSize: '0.75rem',
-                    color: COLORS.textFaint,
-                  }}>
-                    need {deficit.toLocaleString()} more
-                  </span>
-                )}
-                {affordable && (
-                  <span style={{
-                    fontSize: '0.75rem',
-                    color: COLORS.accent,
-                    fontWeight: 600,
-                  }}>
-                    CLAIM →
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {sorted.map(reward => (
+          <RewardCard
+            key={reward.id}
+            reward={reward}
+            balance={balance}
+            onClaim={() => claim(reward)}
+            onDelete={() => deleteReward(reward.id)}
+          />
+        ))}
       </div>
     </section>
+  );
+}
+
+function RewardCard({ reward, balance, onClaim, onDelete }) {
+  const progress = Math.min(1, balance / reward.cost);
+  const affordable = balance >= reward.cost;
+  const deficit = reward.cost - balance;
+
+  // Ring SVG geometry
+  const size = 52;
+  const stroke = 4;
+  const r = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  const ringColor = affordable ? COLORS.accent : COLORS.textMuted;
+
+  return (
+    <div
+      onClick={() => affordable && onClaim()}
+      style={{
+        background: affordable
+          ? `linear-gradient(135deg, ${COLORS.surface}, ${COLORS.accentSoft})`
+          : COLORS.surface,
+        border: `1px solid ${affordable ? COLORS.accent + '66' : COLORS.hair}`,
+        borderRadius: 14,
+        padding: '1rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.85rem',
+        cursor: affordable ? 'pointer' : 'default',
+        transition: 'transform 0.1s, border-color 0.15s',
+        position: 'relative',
+        boxShadow: affordable ? `0 0 16px ${COLORS.accentGlow}` : 'none',
+      }}
+      onMouseEnter={(e) => {
+        if (affordable) e.currentTarget.style.transform = 'translateY(-2px)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)';
+      }}
+    >
+      <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
+        {/* Progress ring */}
+        <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+          <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              stroke={COLORS.hair}
+              strokeWidth={stroke}
+              fill="none"
+            />
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              stroke={ringColor}
+              strokeWidth={stroke}
+              fill="none"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - progress)}
+              style={{
+                transition: 'stroke-dashoffset 0.5s',
+                filter: affordable ? `drop-shadow(0 0 5px ${COLORS.accentGlow})` : 'none',
+              }}
+            />
+          </svg>
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: FONTS.mono,
+            fontSize: '0.7rem',
+            color: ringColor,
+            fontWeight: 600,
+          }}>
+            {Math.round(progress * 100)}
+          </div>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: '0.95rem',
+            color: COLORS.text,
+            letterSpacing: '-0.005em',
+            marginBottom: '0.25rem',
+          }}>
+            {reward.name}
+          </div>
+          <div style={{
+            color: COLORS.accent,
+            fontSize: '0.85rem',
+            fontFamily: FONTS.mono,
+          }}>
+            {reward.cost.toLocaleString()} pts
+          </div>
+        </div>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: COLORS.textFaint,
+            fontSize: '1.05rem',
+            cursor: 'pointer',
+            padding: '0 0.25rem',
+            lineHeight: 1,
+            alignSelf: 'flex-start',
+          }}
+          aria-label="Delete reward"
+        >
+          ×
+        </button>
+      </div>
+
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingTop: '0.5rem',
+        borderTop: `1px solid ${COLORS.hair}`,
+      }}>
+        {affordable ? (
+          <>
+            <span style={{
+              fontSize: '0.78rem',
+              color: COLORS.accent,
+              fontFamily: FONTS.mono,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              fontWeight: 600,
+            }}>
+              Ready to claim
+            </span>
+            <span style={{
+              fontSize: '0.78rem',
+              color: COLORS.accent,
+              fontFamily: FONTS.mono,
+              fontWeight: 600,
+            }}>
+              CLAIM →
+            </span>
+          </>
+        ) : (
+          <>
+            <span style={{
+              fontSize: '0.75rem',
+              color: COLORS.textMuted,
+              fontFamily: FONTS.mono,
+            }}>
+              {deficit.toLocaleString()} pts to go
+            </span>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -373,17 +464,17 @@ function AddRewardForm({ data, setData, onDone }) {
 function PenaltyLog({ data, monthKey }) {
   const thisMonthPenalties = (data.penaltyLog || [])
     .filter(p => p.date && p.date.startsWith(monthKey))
-    .sort((a, b) => b.date.localeCompare(a.date)); // newest first
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   if (thisMonthPenalties.length === 0) return null;
 
   return (
     <section style={{ marginBottom: '2rem' }}>
-      <SectionHeader
+      <SectionHead
         title="Recent Penalties"
-        count={`${thisMonthPenalties.length} this month`}
+        sub={`${thisMonthPenalties.length} this month`}
       />
-      <div style={{ ...cardStyle, padding: '0' }}>
+      <div style={{ ...cardStyle, padding: 0 }}>
         {thisMonthPenalties.slice(0, 15).map((p, idx) => (
           <div
             key={p.logId}
@@ -391,18 +482,39 @@ function PenaltyLog({ data, monthKey }) {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              padding: '0.65rem 1rem',
+              padding: '0.7rem 1rem',
               borderBottom: idx === Math.min(thisMonthPenalties.length, 15) - 1
                 ? 'none'
-                : `1px solid ${COLORS.border}`,
+                : `1px solid ${COLORS.hair}`,
               fontSize: '0.9rem',
             }}
           >
-            <div style={{ flex: 1, color: COLORS.text }}>{p.name}</div>
-            <div style={{ color: COLORS.textFaint, fontSize: '0.8rem', marginRight: '1rem' }}>
+            <div style={{
+              flex: 1,
+              color: COLORS.text,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              marginRight: '1rem',
+            }}>
+              {p.name}
+            </div>
+            <div style={{
+              color: COLORS.textMuted,
+              fontSize: '0.78rem',
+              marginRight: '1rem',
+              fontFamily: FONTS.mono,
+            }}>
               {formatShort(p.date)}
             </div>
-            <div style={{ color: COLORS.danger, fontWeight: 600 }}>
+            <div style={{
+              color: COLORS.red,
+              fontWeight: 600,
+              fontFamily: FONTS.mono,
+              minWidth: '3rem',
+              textAlign: 'right',
+            }}>
               £{p.amount.toFixed(2)}
             </div>
           </div>
@@ -410,9 +522,11 @@ function PenaltyLog({ data, monthKey }) {
         {thisMonthPenalties.length > 15 && (
           <div style={{
             padding: '0.75rem 1rem',
-            color: COLORS.textFaint,
-            fontSize: '0.8rem',
+            color: COLORS.textMuted,
+            fontSize: '0.78rem',
             textAlign: 'center',
+            fontFamily: FONTS.mono,
+            borderTop: `1px solid ${COLORS.hair}`,
           }}>
             + {thisMonthPenalties.length - 15} more earlier this month
           </div>
@@ -427,17 +541,19 @@ function PenaltyLog({ data, monthKey }) {
 // ============================================================
 
 function ClaimHistory({ data }) {
-  const history = [...(data.rewardLog || [])].sort((a, b) => b.date.localeCompare(a.date));
+  const history = [...(data.rewardLog || [])].sort((a, b) =>
+    b.date.localeCompare(a.date)
+  );
 
   if (history.length === 0) return null;
 
   return (
     <section style={{ marginBottom: '2rem' }}>
-      <SectionHeader
+      <SectionHead
         title="Claim History"
-        count={`${history.length} claimed · ${(data.totalSpent || 0).toLocaleString()} pts spent`}
+        sub={`${history.length} claimed · ${(data.totalSpent || 0).toLocaleString()} pts spent`}
       />
-      <div style={{ ...cardStyle, padding: '0' }}>
+      <div style={{ ...cardStyle, padding: 0 }}>
         {history.slice(0, 20).map((r, idx) => (
           <div
             key={r.logId}
@@ -445,18 +561,39 @@ function ClaimHistory({ data }) {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              padding: '0.65rem 1rem',
+              padding: '0.7rem 1rem',
               borderBottom: idx === Math.min(history.length, 20) - 1
                 ? 'none'
-                : `1px solid ${COLORS.border}`,
+                : `1px solid ${COLORS.hair}`,
               fontSize: '0.9rem',
             }}
           >
-            <div style={{ flex: 1, color: COLORS.text }}>{r.name}</div>
-            <div style={{ color: COLORS.textFaint, fontSize: '0.8rem', marginRight: '1rem' }}>
+            <div style={{
+              flex: 1,
+              color: COLORS.text,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              marginRight: '1rem',
+            }}>
+              {r.name}
+            </div>
+            <div style={{
+              color: COLORS.textMuted,
+              fontSize: '0.78rem',
+              marginRight: '1rem',
+              fontFamily: FONTS.mono,
+            }}>
               {formatShort(r.date)}
             </div>
-            <div style={{ color: COLORS.accent, fontWeight: 600 }}>
+            <div style={{
+              color: COLORS.accent,
+              fontWeight: 600,
+              fontFamily: FONTS.mono,
+              minWidth: '4rem',
+              textAlign: 'right',
+            }}>
               {r.cost.toLocaleString()} pts
             </div>
           </div>
@@ -464,9 +601,11 @@ function ClaimHistory({ data }) {
         {history.length > 20 && (
           <div style={{
             padding: '0.75rem 1rem',
-            color: COLORS.textFaint,
-            fontSize: '0.8rem',
+            color: COLORS.textMuted,
+            fontSize: '0.78rem',
             textAlign: 'center',
+            fontFamily: FONTS.mono,
+            borderTop: `1px solid ${COLORS.hair}`,
           }}>
             + {history.length - 20} older claims
           </div>
@@ -475,61 +614,3 @@ function ClaimHistory({ data }) {
     </section>
   );
 }
-
-// ============================================================
-// SHARED
-// ============================================================
-
-function SectionHeader({ title, count, action }) {
-  return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'baseline',
-      marginBottom: '0.75rem',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem' }}>
-        <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: COLORS.text }}>
-          {title}
-        </h2>
-        {count && (
-          <span style={{ color: COLORS.textFaint, fontSize: '0.85rem' }}>
-            {count}
-          </span>
-        )}
-      </div>
-      {action}
-    </div>
-  );
-}
-
-const inputStyle = {
-  background: COLORS.bg,
-  color: COLORS.text,
-  border: `1px solid ${COLORS.border}`,
-  borderRadius: '6px',
-  padding: '0.5rem 0.75rem',
-  fontSize: '0.9rem',
-};
-
-const addButtonStyle = {
-  background: 'transparent',
-  color: COLORS.accent,
-  border: `1px solid ${COLORS.border}`,
-  padding: '0.35rem 0.85rem',
-  borderRadius: '6px',
-  fontSize: '0.8rem',
-  fontWeight: 500,
-  cursor: 'pointer',
-};
-
-const primaryButtonStyle = {
-  background: COLORS.accent,
-  color: '#000',
-  border: 'none',
-  borderRadius: '6px',
-  padding: '0.5rem 1rem',
-  fontSize: '0.9rem',
-  fontWeight: 600,
-  cursor: 'pointer',
-};

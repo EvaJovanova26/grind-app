@@ -6,27 +6,15 @@
 import { useState, useEffect } from 'react';
 import { todayISO, daysBetween, daysUntil, addDays } from '../utils/dates';
 import { BACKLOG_AGING } from '../data/defaults';
-
-const COLORS = {
-  bg: '#0a0a0a',
-  card: '#141414',
-  cardHover: '#1a1a1a',
-  border: '#222',
-  text: '#e8e8e8',
-  textDim: '#888',
-  textFaint: '#555',
-  accent: '#d9f66f',
-  danger: '#ef4444',
-  warning: '#f59e0b',
-  purple: '#a78bfa',
-};
-
-const cardStyle = {
-  background: COLORS.card,
-  border: `1px solid ${COLORS.border}`,
-  borderRadius: '12px',
-  padding: '1.25rem',
-};
+import {
+  COLORS,
+  FONTS,
+  cardStyle,
+  inputStyle,
+  primaryButtonStyle,
+  ghostButtonStyle,
+} from '../utils/theme';
+import { SectionHead } from '../components/ui';
 
 // ============================================================
 // MAIN
@@ -55,10 +43,6 @@ export default function TasksTab({ data, setData }) {
 // ============================================================
 // BACKLOG AGING (runs on load)
 // ============================================================
-//
-// For each backlog item, check how many days it's been sitting.
-// Apply penalties at 14d and 21d thresholds, but only once each
-// (tracked via penaltiesApplied array on the item).
 
 function applyBacklogAging(data, setData) {
   const today = todayISO();
@@ -115,7 +99,6 @@ function applyBacklogAging(data, setData) {
 function DeadlinesSection({ data, setData }) {
   const [showAdd, setShowAdd] = useState(false);
 
-  // Sort by due date ascending
   const sorted = [...data.deadlines].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
   const completeDeadline = (id) => {
@@ -140,14 +123,11 @@ function DeadlinesSection({ data, setData }) {
 
   return (
     <section style={{ marginBottom: '2rem' }}>
-      <SectionHeader
+      <SectionHead
         title="Deadlines"
-        count={`${data.deadlines.length} active`}
-        action={
-          <button
-            onClick={() => setShowAdd(!showAdd)}
-            style={addButtonStyle}
-          >
+        sub={`${data.deadlines.length} active`}
+        right={
+          <button onClick={() => setShowAdd(!showAdd)} style={ghostButtonStyle}>
             {showAdd ? 'Cancel' : '+ Add'}
           </button>
         }
@@ -185,7 +165,12 @@ function DeadlineCard({ deadline, onComplete, onDelete }) {
   const dueToday = days === 0;
   const urgent = days > 0 && days <= 2;
 
-  const accentColor = overdue ? COLORS.danger : dueToday || urgent ? COLORS.warning : COLORS.textDim;
+  const accentColor = overdue
+    ? COLORS.red
+    : dueToday || urgent
+    ? COLORS.amber
+    : COLORS.textMuted;
+
   const label = overdue
     ? `${Math.abs(days)}d overdue`
     : dueToday
@@ -206,28 +191,52 @@ function DeadlineCard({ deadline, onComplete, onDelete }) {
       <div style={{
         minWidth: '3rem',
         textAlign: 'center',
+        flexShrink: 0,
       }}>
-        <div style={{ fontSize: '1.5rem', fontWeight: 700, color: accentColor, lineHeight: 1 }}>
+        <div style={{
+          fontFamily: FONTS.display,
+          fontSize: '1.75rem',
+          fontWeight: 400,
+          color: accentColor,
+          lineHeight: 1,
+          letterSpacing: '-0.02em',
+        }}>
           {overdue ? Math.abs(days) : days === 0 ? '!' : days}
         </div>
-        <div style={{ fontSize: '0.7rem', color: COLORS.textFaint, marginTop: '0.2rem' }}>
-          {overdue ? 'DAYS LATE' : dueToday ? 'TODAY' : 'DAYS'}
+        <div style={{
+          fontFamily: FONTS.mono,
+          fontSize: '0.65rem',
+          color: COLORS.textMuted,
+          marginTop: '0.3rem',
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+        }}>
+          {overdue ? 'Days late' : dueToday ? 'Today' : 'Days'}
         </div>
       </div>
 
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: '0.95rem', color: COLORS.text }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: '0.95rem',
+          color: COLORS.text,
+          letterSpacing: '-0.005em',
+        }}>
           {deadline.name}
         </div>
-        <div style={{ fontSize: '0.8rem', color: COLORS.textFaint, marginTop: '0.2rem' }}>
+        <div style={{
+          fontSize: '0.78rem',
+          color: COLORS.textMuted,
+          marginTop: '0.25rem',
+          fontFamily: FONTS.mono,
+        }}>
           {deadline.dueDate} · {label}
         </div>
       </div>
 
       <span style={{
         color: COLORS.accent,
-        fontSize: '0.9rem',
-        fontVariantNumeric: 'tabular-nums',
+        fontSize: '0.85rem',
+        fontFamily: FONTS.mono,
       }}>
         +{deadline.pts}
       </span>
@@ -236,13 +245,15 @@ function DeadlineCard({ deadline, onComplete, onDelete }) {
         onClick={onComplete}
         style={{
           background: COLORS.accent,
-          color: '#000',
+          color: COLORS.bg,
           border: 'none',
-          padding: '0.4rem 0.8rem',
+          padding: '0.4rem 0.85rem',
           borderRadius: '6px',
           fontSize: '0.8rem',
           fontWeight: 600,
           cursor: 'pointer',
+          fontFamily: FONTS.sans,
+          letterSpacing: '-0.005em',
         }}
       >
         Done
@@ -255,6 +266,7 @@ function DeadlineCard({ deadline, onComplete, onDelete }) {
           color: COLORS.textFaint,
           cursor: 'pointer',
           fontSize: '1rem',
+          padding: '0 0.25rem',
         }}
         aria-label="Delete deadline"
       >
@@ -288,7 +300,11 @@ function AddDeadlineForm({ data, setData, onDone }) {
 
   return (
     <div style={{ ...cardStyle, marginBottom: '0.75rem', padding: '1rem' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '0.5rem' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '2fr 1fr 1fr auto',
+        gap: '0.5rem',
+      }}>
         <input
           id="deadline-name"
           name="deadline-name"
@@ -329,7 +345,6 @@ function BacklogSection({ data, setData }) {
   const [showAdd, setShowAdd] = useState(false);
   const today = todayISO();
 
-  // Sort by age (oldest first)
   const sorted = [...data.backlog].sort((a, b) =>
     a.addedDate.localeCompare(b.addedDate)
   );
@@ -354,23 +369,19 @@ function BacklogSection({ data, setData }) {
     }));
   };
 
-  // Find oldest age
   const oldestAge = sorted.length > 0 ? daysBetween(sorted[0].addedDate, today) : 0;
 
   return (
     <section style={{ marginBottom: '2rem' }}>
-      <SectionHeader
+      <SectionHead
         title="Backlog"
-        count={
+        sub={
           sorted.length > 0
             ? `${sorted.length} waiting · oldest ${oldestAge}d`
             : '0 waiting'
         }
-        action={
-          <button
-            onClick={() => setShowAdd(!showAdd)}
-            style={addButtonStyle}
-          >
+        right={
+          <button onClick={() => setShowAdd(!showAdd)} style={ghostButtonStyle}>
             {showAdd ? 'Cancel' : '+ Add'}
           </button>
         }
@@ -407,20 +418,20 @@ function BacklogCard({ item, onComplete, onDrop }) {
   const { warningDays, firstPenaltyDays, secondPenaltyDays } = BACKLOG_AGING;
 
   let status = 'fresh';
-  let statusColor = COLORS.textFaint;
+  let statusColor = COLORS.textMuted;
   let statusText = `${age}d`;
 
   if (age >= secondPenaltyDays) {
     status = 'severe';
-    statusColor = COLORS.danger;
+    statusColor = COLORS.red;
     statusText = `${age}d · still here`;
   } else if (age >= firstPenaltyDays) {
     status = 'late';
-    statusColor = COLORS.danger;
+    statusColor = COLORS.red;
     statusText = `${age}d waiting`;
   } else if (age >= warningDays) {
     status = 'warn';
-    statusColor = COLORS.warning;
+    statusColor = COLORS.amber;
     statusText = `${age}d waiting`;
   }
 
@@ -433,18 +444,28 @@ function BacklogCard({ item, onComplete, onDrop }) {
       gap: '1rem',
       borderLeft: status !== 'fresh' ? `3px solid ${statusColor}` : '3px solid transparent',
     }}>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: '0.95rem', color: COLORS.text }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: '0.95rem',
+          color: COLORS.text,
+          letterSpacing: '-0.005em',
+        }}>
           {item.name}
         </div>
-        <div style={{ fontSize: '0.75rem', color: statusColor, marginTop: '0.2rem' }}>
+        <div style={{
+          fontSize: '0.72rem',
+          color: statusColor,
+          marginTop: '0.25rem',
+          fontFamily: FONTS.mono,
+          letterSpacing: '0.04em',
+        }}>
           {statusText}
         </div>
       </div>
       <span style={{
         color: COLORS.accent,
-        fontSize: '0.9rem',
-        fontVariantNumeric: 'tabular-nums',
+        fontSize: '0.85rem',
+        fontFamily: FONTS.mono,
       }}>
         +{item.pts}
       </span>
@@ -452,13 +473,14 @@ function BacklogCard({ item, onComplete, onDrop }) {
         onClick={onComplete}
         style={{
           background: COLORS.accent,
-          color: '#000',
+          color: COLORS.bg,
           border: 'none',
-          padding: '0.4rem 0.8rem',
+          padding: '0.4rem 0.85rem',
           borderRadius: '6px',
           fontSize: '0.8rem',
           fontWeight: 600,
           cursor: 'pointer',
+          fontFamily: FONTS.sans,
         }}
       >
         Done
@@ -467,12 +489,13 @@ function BacklogCard({ item, onComplete, onDrop }) {
         onClick={onDrop}
         style={{
           background: 'transparent',
-          color: COLORS.textFaint,
-          border: `1px solid ${COLORS.border}`,
-          padding: '0.4rem 0.8rem',
+          color: COLORS.textMuted,
+          border: `1px solid ${COLORS.hair}`,
+          padding: '0.4rem 0.85rem',
           borderRadius: '6px',
-          fontSize: '0.8rem',
+          fontSize: '0.78rem',
           cursor: 'pointer',
+          fontFamily: FONTS.sans,
         }}
       >
         Drop
@@ -505,7 +528,11 @@ function AddBacklogForm({ data, setData, onDone }) {
 
   return (
     <div style={{ ...cardStyle, marginBottom: '0.75rem', padding: '1rem' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr auto', gap: '0.5rem' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '3fr 1fr auto',
+        gap: '0.5rem',
+      }}>
         <input
           id="backlog-name"
           name="backlog-name"
@@ -548,27 +575,25 @@ function CommitmentsSection({ data, setData }) {
 
   return (
     <section style={{ marginBottom: '2rem' }}>
-      <SectionHeader
+      <SectionHead
         title="Commitments"
-        count={`${commitments.length} this quarter`}
-        action={
-          commitments.length < 3 && (
-            <button
-              onClick={() => setShowAdd(!showAdd)}
-              style={addButtonStyle}
-            >
+        sub={`${commitments.length} this quarter`}
+        right={
+          commitments.length < 3 ? (
+            <button onClick={() => setShowAdd(!showAdd)} style={ghostButtonStyle}>
               {showAdd ? 'Cancel' : '+ Add'}
             </button>
-          )
+          ) : null
         }
       />
 
       {commitments.length >= 3 && !showAdd && (
         <div style={{
           fontSize: '0.8rem',
-          color: COLORS.textFaint,
+          color: COLORS.textMuted,
           fontStyle: 'italic',
           marginBottom: '0.75rem',
+          fontFamily: FONTS.sans,
         }}>
           Cap is 3 — drop one before adding another.
         </div>
@@ -591,7 +616,7 @@ function CommitmentsSection({ data, setData }) {
               key={c.id}
               style={{
                 ...cardStyle,
-                borderLeft: `3px solid ${COLORS.purple}`,
+                borderLeft: `3px solid ${COLORS.magenta}`,
                 display: 'flex',
                 gap: '1rem',
                 alignItems: 'flex-start',
@@ -599,17 +624,19 @@ function CommitmentsSection({ data, setData }) {
             >
               <div style={{ flex: 1 }}>
                 <div style={{
-                  fontSize: '1rem',
-                  fontWeight: 600,
+                  fontFamily: FONTS.display,
+                  fontSize: '1.1rem',
+                  fontWeight: 400,
                   color: COLORS.text,
                   marginBottom: '0.3rem',
+                  letterSpacing: '-0.015em',
                 }}>
                   {c.name}
                 </div>
                 {c.why && (
                   <div style={{
                     fontSize: '0.85rem',
-                    color: COLORS.textDim,
+                    color: COLORS.textMuted,
                     fontStyle: 'italic',
                     lineHeight: 1.5,
                   }}>
@@ -621,12 +648,13 @@ function CommitmentsSection({ data, setData }) {
                 onClick={() => deleteCommitment(c.id)}
                 style={{
                   background: 'transparent',
-                  color: COLORS.textFaint,
-                  border: `1px solid ${COLORS.border}`,
+                  color: COLORS.textMuted,
+                  border: `1px solid ${COLORS.hair}`,
                   padding: '0.3rem 0.7rem',
                   borderRadius: '6px',
-                  fontSize: '0.75rem',
+                  fontSize: '0.72rem',
                   cursor: 'pointer',
+                  fontFamily: FONTS.sans,
                 }}
               >
                 Drop
@@ -685,74 +713,21 @@ function AddCommitmentForm({ data, setData, onDone }) {
 }
 
 // ============================================================
-// SHARED BITS
+// SHARED
 // ============================================================
-
-function SectionHeader({ title, count, action }) {
-  return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'baseline',
-      marginBottom: '0.75rem',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem' }}>
-        <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: COLORS.text }}>
-          {title}
-        </h2>
-        {count && (
-          <span style={{ color: COLORS.textFaint, fontSize: '0.85rem' }}>
-            {count}
-          </span>
-        )}
-      </div>
-      {action}
-    </div>
-  );
-}
 
 function EmptyState({ text }) {
   return (
     <div style={{
       ...cardStyle,
-      color: COLORS.textFaint,
+      color: COLORS.textMuted,
       fontSize: '0.9rem',
       fontStyle: 'italic',
       textAlign: 'center',
       padding: '2rem',
+      fontFamily: FONTS.sans,
     }}>
       {text}
     </div>
   );
 }
-
-const inputStyle = {
-  background: COLORS.bg,
-  color: COLORS.text,
-  border: `1px solid ${COLORS.border}`,
-  borderRadius: '6px',
-  padding: '0.5rem 0.75rem',
-  fontSize: '0.9rem',
-};
-
-const addButtonStyle = {
-  background: 'transparent',
-  color: COLORS.accent,
-  border: `1px solid ${COLORS.border}`,
-  padding: '0.35rem 0.85rem',
-  borderRadius: '6px',
-  fontSize: '0.8rem',
-  fontWeight: 500,
-  cursor: 'pointer',
-};
-
-const primaryButtonStyle = {
-  background: COLORS.accent,
-  color: '#000',
-  border: 'none',
-  borderRadius: '6px',
-  padding: '0.5rem 1rem',
-  fontSize: '0.9rem',
-  fontWeight: 600,
-  cursor: 'pointer',
-};
