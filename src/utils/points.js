@@ -2,6 +2,8 @@
 //
 // All point calculations. Pure functions.
 
+export const PERFECT_DAY_THRESHOLD = 250;
+
 export function ritualPointsForDate(data, date) {
   const checks = data.ritualChecks[date] || {};
   let total = 0;
@@ -103,15 +105,6 @@ export function currentBalance(data) {
 // ============================================================
 // PENALTY JAR
 // ============================================================
-//
-// "Owed" for a given month = sum of penalties dated to that month
-// minus sum of payments recorded against that month. Can go negative
-// briefly if you overpay (rare, but allowed).
-//
-// "Settled" = owed has been brought to zero (or below). The PAID tag
-// is shown when there's at least one payment AND owed is zero or less.
-// Re-accrual is automatic: log a new penalty in a settled month and
-// it goes back into the red until you record another payment.
 
 export function currentMonthPenalties(data, monthKey) {
   return (data.penaltyLog || [])
@@ -128,7 +121,6 @@ export function paymentsForMonth(data, monthKey) {
 export function jarOwedForMonth(data, monthKey) {
   const total = currentMonthPenalties(data, monthKey);
   const paid = paymentsForMonth(data, monthKey);
-  // Round to 2dp to avoid float drift like 0.0000001 left over
   return Math.round((total - paid) * 100) / 100;
 }
 
@@ -146,4 +138,52 @@ export function ritualsCompletedCount(data, date) {
 export function intentionsCompletedCount(data, date) {
   const checks = data.intentionChecks[date] || {};
   return Object.values(checks).filter(Boolean).length;
+}
+
+// ============================================================
+// PERFECT DAY (retroactive)
+// ============================================================
+//
+// Recomputes the live Perfect-Day criteria for any historical date:
+//   1. ≥75% of daily rituals fully done
+//   2. 3+ intentions ticked
+//   3. (weekdays only) all work rituals done AND all todos done (or none exist)
+//   AND points ≥ threshold
+//
+// Stays in sync with TodayTab's live ring — same rules, same numbers.
+
+function isWeekendDate(date) {
+  const d = new Date(date + 'T12:00:00');
+  const day = d.getDay();
+  return day === 0 || day === 6;
+}
+
+export function isPerfectDay(data, date) {
+  const points = totalPointsForDate(data, date);
+  if (points < PERFECT_DAY_THRESHOLD) return false;
+
+  const ritualsDone = ritualsCompletedCount(data, date);
+  const ritualsTotal = data.rituals.length;
+  const ritualsMet = ritualsTotal > 0 && (ritualsDone / ritualsTotal) >= 0.75;
+  if (!ritualsMet) return false;
+
+  if (intentionsCompletedCount(data, date) < 3) return false;
+
+  // Weekend: work criterion auto-passes
+  if (isWeekendDate(date)) return true;
+
+  // Weekday: all work rituals fully tapped + all todos done (or none exist)
+  const workChecks = data.workRitualChecks[date] || {};
+  const workRitualsDone = data.workRituals.filter(wr => {
+    const taps = workChecks[wr.id] || 0;
+    const maxTaps = wr.twice ? 2 : 1;
+    return taps >= maxTaps;
+  }).length;
+  const workRitualsTotal = data.workRituals.length;
+  const allWorkRituals = workRitualsTotal > 0 && workRitualsDone === workRitualsTotal;
+
+  const todos = data.workTodos[date] || [];
+  const allTodos = todos.length === 0 || todos.every(t => t.done);
+
+  return allWorkRituals && allTodos;
 }

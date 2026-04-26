@@ -6,6 +6,7 @@ import { useState } from 'react';
 import {
   todayISO,
   formatLong,
+  formatShort,
   addDays,
   isToday,
   isPast,
@@ -32,6 +33,7 @@ import {
   WidgetLabel,
   PerfectDayRing,
 } from '../components/ui';
+import MonthCalendar from '../components/MonthCalendar';
 
 // Saturday = 6, Sunday = 0
 function isWeekend(isoDate) {
@@ -52,16 +54,13 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
   const canLogPenalty = isToday(viewDate);
   const weekend = isWeekend(viewDate);
 
-  // Today's cumulative points across ALL sources (incl. weekly/monthly rhythms ticked today)
   const todayPoints = totalPointsForDate(data, viewDate);
 
-  // ── Criterion 1: Rituals (≥75% of daily rituals fully done) ──
   const ritualsDone = ritualsCompletedCount(data, viewDate);
   const ritualsTotal = data.rituals.length;
   const ritualPct = ritualsTotal > 0 ? ritualsDone / ritualsTotal : 0;
   const ritualsMet = ritualPct >= 0.75;
 
-  // ── Criterion 2: Intentions (≥3 ticked across all 3 categories) ──
   const intentionsDone = intentionsCompletedCount(data, viewDate);
   const intentionsTotal =
     data.intentions.body.length +
@@ -69,8 +68,6 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
     data.intentions.life.length;
   const intentionsMet = intentionsDone >= 3;
 
-  // ── Criterion 3 (weekdays only): Work rituals + tasks all done ──
-  // On weekends, work is hidden from the UI and dropped from Perfect Day criteria.
   const workRitualChecks = data.workRitualChecks[viewDate] || {};
   const workRitualsDone = data.workRituals.filter(wr => {
     const taps = workRitualChecks[wr.id] || 0;
@@ -97,7 +94,6 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
     ...(weekend ? [] : [{ label: workLabel, met: workMet, detail: workDetail }]),
   ];
 
-  // Perfect Day = all (active) criteria met AND points ≥ 250
   const isPerfect = ritualsMet && intentionsMet && workMet && todayPoints >= 250;
 
   return (
@@ -140,7 +136,11 @@ export default function TodayTab({ data, setData, viewDate, setViewDate }) {
         </div>
       )}
 
-      <DateNav viewDate={viewDate} setViewDate={setViewDate} />
+      <DateNav
+        viewDate={viewDate}
+        setViewDate={setViewDate}
+        data={data}
+      />
 
       <ScoreCards data={data} viewDate={viewDate} monthKey={monthKey} />
 
@@ -221,52 +221,83 @@ function Section({ title, sub, accent, children }) {
 }
 
 // ============================================================
-// DATE NAV
+// DATE NAV — date pill toggles MonthCalendar below
 // ============================================================
 
-function DateNav({ viewDate, setViewDate }) {
+function DateNav({ viewDate, setViewDate, data }) {
+  const [calOpen, setCalOpen] = useState(false);
+
+  const selectDate = (iso) => {
+    setViewDate(iso);
+    setCalOpen(false);
+  };
+
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '1rem',
-      marginBottom: '1.5rem',
-      padding: '0.75rem 1rem',
-      ...cardStyle,
-      borderRadius: '14px',
-    }}>
-      <button
-        onClick={() => setViewDate(addDays(viewDate, -1))}
-        style={navBtnStyle}
-        aria-label="Previous day"
-      >
-        ‹
-      </button>
-      <input
-        type="date"
-        id="view-date"
-        name="view-date"
-        value={viewDate}
-        onChange={(e) => setViewDate(e.target.value)}
-        style={{
-          background: 'transparent',
-          color: COLORS.text,
-          border: 'none',
-          fontSize: '1rem',
-          fontFamily: FONTS.mono,
-          colorScheme: 'dark',
-          outline: 'none',
-        }}
-      />
-      <button
-        onClick={() => setViewDate(addDays(viewDate, 1))}
-        style={navBtnStyle}
-        aria-label="Next day"
-      >
-        ›
-      </button>
-    </div>
+    <>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.5rem',
+        marginBottom: calOpen ? '0.75rem' : '1.5rem',
+        padding: '0.6rem 1rem',
+        ...cardStyle,
+        borderRadius: '14px',
+      }}>
+        <button
+          onClick={() => setViewDate(addDays(viewDate, -1))}
+          style={navBtnStyle}
+          aria-label="Previous day"
+        >
+          ‹
+        </button>
+        <button
+          onClick={() => setCalOpen(!calOpen)}
+          style={{
+            background: 'transparent',
+            color: COLORS.text,
+            border: 'none',
+            fontSize: '0.95rem',
+            fontFamily: FONTS.mono,
+            cursor: 'pointer',
+            padding: '0.35rem 0.75rem',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            transition: 'background 0.1s',
+            letterSpacing: '0.02em',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = COLORS.surfaceHover}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+        >
+          <span>{formatShort(viewDate)}</span>
+          <span style={{
+            color: COLORS.textMuted,
+            fontSize: '0.7rem',
+            transform: calOpen ? 'rotate(180deg)' : 'rotate(0)',
+            transition: 'transform 0.15s',
+          }}>
+            ▾
+          </span>
+        </button>
+        <button
+          onClick={() => setViewDate(addDays(viewDate, 1))}
+          style={navBtnStyle}
+          aria-label="Next day"
+        >
+          ›
+        </button>
+      </div>
+
+      {calOpen && (
+        <MonthCalendar
+          data={data}
+          viewDate={viewDate}
+          onSelect={selectDate}
+        />
+      )}
+    </>
   );
 }
 
