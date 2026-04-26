@@ -340,7 +340,7 @@ function RitualList({ data, setData, viewDate }) {
 
 function RitualRow({ ritual, taps, onTap, isLast }) {
   let maxTaps;
-  if (ritual.water) maxTaps = 4;
+  if (ritual.water) maxTaps = ritual.waterTaps ?? 4;
   else if (ritual.twice) maxTaps = 2;
   else maxTaps = 1;
 
@@ -349,7 +349,9 @@ function RitualRow({ ritual, taps, onTap, isLast }) {
 
   let ptsLabel;
   if (ritual.water) {
-    ptsLabel = `${taps * 500}ml / 2L · +${taps * 2}`;
+const targetMl = (ritual.waterTaps ?? 4) * 500;
+const targetLabel = targetMl >= 1000 ? `${targetMl / 1000}L` : `${targetMl}ml`;
+ptsLabel = `${taps * 500}ml / ${targetLabel} · +${taps * 2}`;
   } else if (ritual.twice) {
     ptsLabel = taps === 2 ? `+${ritual.pts}` : taps === 1 ? `+${ritual.pts / 2} (½)` : `+${ritual.pts}`;
   } else {
@@ -399,7 +401,7 @@ function RitualRow({ ritual, taps, onTap, isLast }) {
 
 function cycleRitualTap(data, setData, viewDate, ritual) {
   let maxTaps;
-  if (ritual.water) maxTaps = 4;
+  if (ritual.water) maxTaps = ritual.waterTaps ?? 4;
   else if (ritual.twice) maxTaps = 2;
   else maxTaps = 1;
 
